@@ -1,0 +1,19 @@
+.navLinks {
+    display: flex;
+    margin-left: 1;
+}
+
+.logo {
+    flex-grow: 1;
+    cursor: "pointer";
+}
+
+.link {
+    color: white;
+    font-size: 20px;
+    margin-left: 1;
+    padding-right: 5px;
+    &:hover {
+        border-bottom: 1px solid white;
+    }
+}
