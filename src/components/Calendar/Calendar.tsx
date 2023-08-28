@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect} from 'react';
 import ApiCalendar from "react-google-calendar-api";
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { Button, Card, CardHeader, Chip, Stack, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Divider } from '@mui/material';
+import { Button, Card, CardHeader, Checkbox, Chip, Stack, FormGroup, FormControlLabel, FormControl, FormLabel, Grid, InputLabel, Select, MenuItem, SelectChangeEvent, Divider } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
 // import { start } from 'repl';
 // import { DateTime } from 'luxon';
@@ -40,10 +40,12 @@ interface ShippingAddress {
 }
 
 interface Order {
+    salesID: string;
     orderNumber: string;
     customerCode: string;
     customerDescription: string;
     location: string;
+    dateEntered: Date;
 }
 
 // interface TimeCalendarType {
@@ -74,8 +76,27 @@ function Calendar({orderItem, token} : props) {
     const [address, setAddress] = React.useState<ShippingAddress>();
     const [selectedCalendar, setSelectedCalendar] = React.useState<string>('pickacalender');
     const getOrderURLpt1 = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/'
-    const getOrderURLpt2 = '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription';
+    const getOrderURLpt2 = '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
     const getAddressURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/';
+    // const [ checkedSalesID, setCheckedSalesID ] = React.useState<boolean>();
+    const [checkboxState, setCheckboxState] = React.useState({
+        salesID: false,
+        dateEntered: false,
+        orderNumber: false,
+        jobNumber: true,
+        partNumber: true,
+        customerDescription: true,
+        location: false,
+        addressBox: false
+      });
+      const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setCheckboxState({
+          ...checkboxState,
+          [event.target.name]: event.target.checked,    
+        });
+      };
+    
+      const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox } = checkboxState;
     //{customerCode}/{location}
 
     useEffect(() => {
@@ -94,7 +115,7 @@ function Calendar({orderItem, token} : props) {
             let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
             fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
               .then(response => response.json())
-              .then(json => setOrder(json.data))
+              .then(json => setOrder(json.Data))
               .catch(error => console.error(error));
         } else {
             console.log('need order item and token to get address');
@@ -106,7 +127,7 @@ function Calendar({orderItem, token} : props) {
             let url = getAddressURL + order.customerCode + '/' + order.location;
             fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
             .then(response => response.json())
-            .then(json => setAddress(json.data))
+            .then(json => setAddress(json.Data))
             .catch(error => console.error(error));
         } else {
             console.log('getting address requires order and token')
@@ -152,53 +173,103 @@ function Calendar({orderItem, token} : props) {
     };      
 
     return (<>
-    <Stack direction="row" spacing="3" alignItems="center">
-        <Chip label={orderItem.orderNumber}/>
-        <Chip label={orderItem.jobNumber}/>
-        <Chip label={orderItem.partNumber}/>
-        <DateTimePicker value={value} onChange={(newValue) => setValue(newValue)} />        
-        <FormControl  style={{minWidth: 120}}>
-          <InputLabel id="duration-label">Duration</InputLabel>
-          <Select value={duration} size="medium" labelId="duration-label" id="duration-select"  onChange={handleDurationChange} label="Duration">
-            <MenuItem value={'1'}>1</MenuItem>
-            <MenuItem value={'2'}>2</MenuItem>
-            <MenuItem value={'4'}>4</MenuItem>
-            <MenuItem value={'8'}>8</MenuItem>
-        </Select>
-        </FormControl>
-        { calendarList && calendarList.length > 0 &&
-        <FormControl style={{minWidth: 120}}>
-          <InputLabel id="calendarLabel">Calendar</InputLabel> 
-          <Select value={selectedCalendar} size="medium" labelId="calendarLabel" id="calendar-select" onChange={handleCalendarChange} label="Pick Calendar">
-            <MenuItem key="nocal" value="pickacalender">Select A Calendar</MenuItem>
-          {calendarList.map((calendar) => (                
-            <MenuItem key={calendar?.id} value={calendar?.id}>{calendar.summary}</MenuItem>
-           ))}
-        </Select>
-        </FormControl>        
-    }
-    <Button disabled={!selectedCalendar || selectedCalendar === 'pickacalender'} variant="contained" size="medium" className="login" onClick={handleSchedule}> Send to Calendar </Button>
-    </Stack>
-    {/* <Divider textAlign="left">Day Outlook</Divider>    
-    {selectedCalendarEvents && selectedCalendarEvents.length > 0 &&
-        <Stack direction="row" spacing="3" alignItems="center">
-            {selectedCalendarEvents.map((event) => {
-                const date = dayjs(event.start.dateTime).toDate();
-                const dayj = dayjs(event.start.dateTime);
-                const time = dayj.format('LT')
-                return(
-                <Card variant="outlined">
-                    <CardHeader title={event.summary}>
-                    </CardHeader>
-                        <Stack direction="column" spacing="1">
-                            <div>{time}</div>
-                            <div>{date.toDateString()}</div>
-                        </Stack>                             
-                    </Card>
-                );
-            })}
-        </Stack>
-    }         */}
+    {/* Job Number (xxxxx-xx) / Customer Name / Part No / .... Resources ... Address ...  */}
+        <Grid container spacing="2">
+            <Grid container item xs={5} direction="column">            
+                <FormGroup>
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Sales ID</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={salesID} onChange={handleChecked} name={"salesID"} />} label={order?.salesID || 'not found'}/>
+                        </Grid>
+                    </Grid> 
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                        <FormLabel>Date Entered</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={dateEntered} onChange={handleChecked} name={"dateEntered"} />} label={order?.dateEntered.toLocaleString() || 'not found'}/>
+                        </Grid>
+                    </Grid>
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Order Number</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={orderNumber} onChange={handleChecked} name={"orderNumber"}  />} label={order?.orderNumber}/>
+                        </Grid>
+                    </Grid>
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Job Number</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={jobNumber} onChange={handleChecked} name={"jobNumber"} />} label={orderItem.jobNumber}/>
+                        </Grid>                        
+                    </Grid> 
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Part number</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={partNumber} onChange={handleChecked} name={"partNumber"}/>} label={orderItem.partNumber}/>
+                        </Grid>
+                    </Grid> 
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Customer Name</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={customerDescription} onChange={handleChecked} name={"customerDescription"}/>} label={order?.customerDescription}/>
+                        </Grid>
+                    </Grid>
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Location</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={location} onChange={handleChecked} name={"location"}/>} label={order?.location}/>
+                        </Grid>
+                    </Grid>
+                    <Grid container item direction="row" alignItems="center">
+                        <Grid item xs={3}>
+                            <FormLabel>Address</FormLabel>
+                        </Grid>
+                        <Grid item xs={9}>
+                            <FormControlLabel control={<Checkbox checked={addressBox} onChange={handleChecked} name={"addressBox"}/>} label={address?.shippingAddress1 || '' + address?.shippingCity || ''}/>
+                        </Grid>
+                    </Grid>
+                </FormGroup>
+            </Grid>
+            <Grid container item xs={7} direction="column">
+                <Grid container item direction="row" alignItems="center">
+                <DateTimePicker value={value} onChange={(newValue) => setValue(newValue)} />        
+                <FormControl  style={{minWidth: 120}}>
+                    <InputLabel id="duration-label">Duration</InputLabel>
+                    <Select value={duration} size="medium" labelId="duration-label" id="duration-select"  onChange={handleDurationChange} label="Duration">
+                        <MenuItem value={'1'}>1</MenuItem>
+                        <MenuItem value={'2'}>2</MenuItem>
+                        <MenuItem value={'4'}>4</MenuItem>
+                        <MenuItem value={'8'}>8</MenuItem>
+                    </Select>
+                </FormControl>
+                { calendarList && calendarList.length > 0 &&
+                <FormControl style={{minWidth: 120}}>
+                    <InputLabel id="calendarLabel">Calendar</InputLabel> 
+                    <Select value={selectedCalendar} size="medium" labelId="calendarLabel" id="calendar-select" onChange={handleCalendarChange} label="Pick Calendar">
+                    <MenuItem key="nocal" value="pickacalender">Select A Calendar</MenuItem>
+                    {calendarList.map((calendar) => (                
+                        <MenuItem key={calendar?.id} value={calendar?.id}>{calendar.summary}</MenuItem>
+                    ))}
+                    </Select>
+                </FormControl>         
+                }
+                <Button disabled={!selectedCalendar || selectedCalendar === 'pickacalender'} variant="contained" size="large" className="login" onClick={handleSchedule}> Send to Calendar </Button>
+                </Grid>
+            </Grid>
+        </Grid>
     </>);
 }
 

@@ -1,9 +1,7 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import {Container, AppBar, Box, ClickAwayListener, IconButton, Grow, Menu, MenuItem, MenuList, Paper, Toolbar, Popper } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
 import Navbar from './components/NavBar/NavBar';
 import JobsList from './components/JobsList/JobsList';
 import Settings from './components/Settings/Settings';
