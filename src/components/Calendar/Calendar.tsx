@@ -48,6 +48,14 @@ interface Order {
     dateEntered: Date;
 }
 
+interface Routing {
+    stepNumber: number;
+    departmentNumber: string;
+    description: string;
+    employeeCode: string;
+    partNumber: string;
+}
+
 // interface TimeCalendarType {
 //     dateTime?: string;
 //     timeZone: string;
@@ -73,11 +81,14 @@ function Calendar({orderItem, token} : props) {
     const [duration, setDuration] = React.useState<string>('1');
     const [calendarList, setCalendarList ] = React.useState<GoogCal[]>();
     const [order, setOrder] = React.useState<Order>();
+    const [ routings, setRoutings ] = React.useState<Routing[]>();
     const [address, setAddress] = React.useState<ShippingAddress>();
     const [selectedCalendar, setSelectedCalendar] = React.useState<string>('pickacalender');
+    const [selectedRouting, setSelectedRouting] = React.useState<string>();
     const getOrderURLpt1 = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/'
     const getOrderURLpt2 = '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
     const getAddressURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/';
+    const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?orderNumber=';
     // const [ checkedSalesID, setCheckedSalesID ] = React.useState<boolean>();
     const [checkboxState, setCheckboxState] = React.useState({
         salesID: false,
@@ -87,7 +98,8 @@ function Calendar({orderItem, token} : props) {
         partNumber: true,
         customerDescription: true,
         location: false,
-        addressBox: false
+        addressBox: false,
+        routingBox: false
       });
       const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
         setCheckboxState({
@@ -96,7 +108,7 @@ function Calendar({orderItem, token} : props) {
         });
       };
     
-      const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox } = checkboxState;
+      const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox, routingBox } = checkboxState;
     //{customerCode}/{location}
 
     useEffect(() => {
@@ -119,6 +131,13 @@ function Calendar({orderItem, token} : props) {
               .catch(error => console.error(error));
         } else {
             console.log('need order item and token to get address');
+        }
+        if (orderItem && token) {
+            let url = getRoutingsURL + orderItem.orderNumber;
+            fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
+            .then(response => response.json())
+            .then(json => setRoutings(json.Data))
+            .catch(error => console.error(error));
         }
     },[orderItem, token]);
 
@@ -143,13 +162,18 @@ function Calendar({orderItem, token} : props) {
         console.log('clicked calendar ' + event.target.value);
     }
 
+    const handleRoutingChange = (event: SelectChangeEvent) => {
+        setSelectedRouting(event.target.value);
+        console.log('clicked routing: ' + event.target.value);
+    }
+
     const handleSchedule = () => {
         const apiCalendar = new ApiCalendar(config);
         const startDate = value || dayjs();
         const endDate = startDate.add(parseInt(duration), 'hour');        
         const timeZone = "America/Chicago";
         const summary = orderItem.jobNumber + ' ' + orderItem.partNumber;
-        const description = orderItem.partDescription;
+        const description = getDescription();
         const event = {
             summary,
             description,
@@ -170,7 +194,46 @@ function Calendar({orderItem, token} : props) {
          .catch((error: any) => {
             console.log(error);
          });
-    };      
+    };
+
+    const getDescription = () => {
+        let description = '';
+        //orderItem.partDescription
+        if (salesID) {
+            description += order?.salesID;
+            description += ' ';
+        }
+        if (dateEntered) {
+            description += order?.dateEntered.toLocaleString();
+            description += ' ';
+        }
+        if (orderNumber) {
+            description += orderItem.orderNumber;
+            description += ' ';
+        }
+        if (jobNumber) {
+            description += orderItem.jobNumber;
+            description += ' ';
+        }
+        if (partNumber) {
+            description += orderItem.partNumber;
+            description += ' ';
+        }
+        if (customerDescription) {
+            description += order?.customerDescription;
+            description += ' ';
+        }
+        if (location) {
+            description += order?.location;
+            description += ' ';
+        }
+        if (routingBox) {
+            description += selectedRouting;
+        }
+
+        //const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox, routingBox } = checkboxState;
+        return description;
+    }
 
     return (<>
     {/* Job Number (xxxxx-xx) / Customer Name / Part No / .... Resources ... Address ...  */}
@@ -243,7 +306,7 @@ function Calendar({orderItem, token} : props) {
                     </Grid>
                 </FormGroup>
             </Grid>
-            <Grid container item xs={7} direction="column">
+            <Grid container item xs={7} direction="column" spacing="4">
                 <Grid container item direction="row" alignItems="center">
                 <DateTimePicker value={value} onChange={(newValue) => setValue(newValue)} />        
                 <FormControl  style={{minWidth: 120}}>
@@ -266,7 +329,22 @@ function Calendar({orderItem, token} : props) {
                     </Select>
                 </FormControl>         
                 }
-                <Button disabled={!selectedCalendar || selectedCalendar === 'pickacalender'} variant="contained" size="large" className="login" onClick={handleSchedule}> Send to Calendar </Button>
+                <Button disabled={!selectedCalendar || selectedCalendar === 'pickacalender'} variant="contained" size="large" className="login" onClick={handleSchedule}> Schedule Google Calendar </Button>
+                </Grid>
+                <Grid container item direction="row" alignItems="center" >
+                    <FormControl style={{minWidth: 120}}>
+                        <InputLabel id="routingsLabel">
+                            Routings
+                        </InputLabel>
+                        { routings &&
+                        <Select value={selectedRouting} size="medium" labelId="routingsLabel" id="selectedRouting" onChange={handleRoutingChange} label="Duration">
+                            {routings.map((routing: Routing) => (
+                                <MenuItem key={routing?.stepNumber} value={routing?.description}>{routing?.description}</MenuItem>
+                            ))}
+                        </Select>
+                        }
+                    </FormControl>
+                    <FormControlLabel control={<Checkbox checked={routingBox} onChange={handleChecked} name={"routingBox"}/>} label={"Routing"}/>
                 </Grid>
             </Grid>
         </Grid>

@@ -6,7 +6,10 @@ import Calendar from '../Calendar/Calendar'
 function JobsList() {  
   console.log('jobslist')
   const [reportType, setReportType] = React.useState("nonADA");
-  const [jobsList, setJobslist] = React.useState<JobsList>();
+  const [skipRows, setSkiprows] = React.useState(0);
+  // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
+  // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
+  const [jobsList, setJobslist] = React.useState<Data[]>();
   const [data, setData] = React.useState<Data[]>();
   const [token, setToken] = React.useState<string>('');
   const [page, setPage] = React.useState(0);
@@ -18,15 +21,74 @@ function JobsList() {
     setReportType(event.target.value);
   } 
 
-  const urlADA = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber';
-  const urlNonADA = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber';
+  const urlADA = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
+  const urlNonADA = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
 
-  const handleGetJobs = () => {
-    let url = reportType === "nonADA" ? urlNonADA : urlADA;
-      fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
-        .then(response => response.json())
-        .then(json => setJobslist(json))
-        .catch(error => console.error(error));
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(+event.target.value);
+    setPage(0);
+  };
+
+  const handleGetJobs = async () => {
+    let datalist : Data[] = [];
+    let fetchMore = true;
+    let fetchError = false;
+    let skipRows = 0;
+    while (!fetchError && fetchMore) {
+      console.log('in the loop', fetchError, ' ', fetchMore);
+      console.log('why', !fetchError && fetchMore)
+      let url = reportType === "nonADA" ? urlNonADA : urlADA;
+      if (skipRows > 0 ) {        
+        url += '&skip=' + skipRows.toString();
+      } 
+      await fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
+        // eslint-disable-next-line no-loop-func
+        .then((response) => {
+          console.log('reponse', response);
+          if(response.status === 200) {
+            console.log('good status');
+          //  fetchmore = true;
+            return response.json();
+          } else {
+            console.log('not good status');
+            fetchError = true;
+            // setOrderFetchMore(false);
+            // setOrderFetcherror(true);
+          }
+        })
+        // eslint-disable-next-line no-loop-func
+        .then((json) => {
+          console.log('json here', json);
+          if (json) {
+            setSkiprows(skipRows + json.Data.length);
+            json.Data.forEach((data: Data) => {
+              datalist.push(data);
+            })
+            // datalist.push(json.Data);
+            if (json.Data.length === 200) {
+              skipRows += 200;
+              console.log('skipRows', skipRows);
+            } else {
+              fetchMore = false;
+            }
+          }
+        })
+        // eslint-disable-next-line no-loop-func
+        .catch((error) => {
+          console.log('error fetching', error);
+          fetchError = true;
+        });
+        
+      }
+      setJobslist(datalist);
+      console.log('datalist', datalist);
+        // .then(response => response.json())
+        // .then(json => setJobslist(json))
+        // .catch(error => console.error(error));
   }
 
   interface Column {
@@ -76,7 +138,7 @@ function JobsList() {
     }
     if (jobsList) {
       let newData = new Array<Data>();
-      jobsList.Data.forEach((job)=> {
+      jobsList.forEach((job)=> {
         newData.push(createData(job));
       })
       setData(newData);
@@ -163,15 +225,15 @@ function JobsList() {
         </Table>
       }       
       </TableContainer>  
-      {/* <TablePagination
-        rowsPerPageOptions={[20, 50, 100]}
+      <TablePagination
+        rowsPerPageOptions={[100]}
         component="div"
-        count={jobsList.Data.length || 0}
+        count={jobsList?.length || 0}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-      /> */}
+      />
       {/* <div>
         {jobsList ? <pre>{JSON.stringify(jobsList, null, 2)}</pre> : 'Loading...'}
       </div>         */}
