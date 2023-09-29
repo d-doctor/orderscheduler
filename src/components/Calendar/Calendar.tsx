@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect} from 'react';
 import ApiCalendar from "react-google-calendar-api";
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { Button, Card, CardHeader, Checkbox, Chip, Stack, FormGroup, FormControlLabel, FormControl, FormLabel, Grid, InputLabel, Select, MenuItem, SelectChangeEvent, Divider } from '@mui/material';
+import { Button, Card, CardHeader, Checkbox, Chip, Stack, FormGroup, FormControlLabel, FormControl, FormLabel, Grid, InputLabel, Select, MenuItem, SelectChangeEvent, Divider, TextField } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
 // import { start } from 'repl';
 // import { DateTime } from 'luxon';
@@ -54,6 +54,8 @@ interface Routing {
     description: string;
     employeeCode: string;
     partNumber: string;
+    workCenter: string;
+    cycleTime: string;
 }
 
 // interface TimeCalendarType {
@@ -85,10 +87,12 @@ function Calendar({orderItem, token} : props) {
     const [address, setAddress] = React.useState<ShippingAddress>();
     const [selectedCalendar, setSelectedCalendar] = React.useState<string>('pickacalender');
     const [selectedRouting, setSelectedRouting] = React.useState<string>();
+    const [description, setDescription] = React.useState<string>();
     const getOrderURLpt1 = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/'
     const getOrderURLpt2 = '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
     const getAddressURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/';
-    const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?orderNumber=';
+    // const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?jobNumber=';
+    const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?fields=stepNumber%2CdepartmentNumber%2Cdescription%2CemployeeCode%2CpartNumber%2CworkCenter%2CcycleTime&jobNumber=';
     // const [ checkedSalesID, setCheckedSalesID ] = React.useState<boolean>();
     const [checkboxState, setCheckboxState] = React.useState({
         salesID: false,
@@ -112,7 +116,7 @@ function Calendar({orderItem, token} : props) {
     //{customerCode}/{location}
 
     useEffect(() => {
-        setValue(dayjs(orderItem.dueDate));
+        setValue(dayjs(orderItem.dueDate).hour(7));
         const apiCalendar = new ApiCalendar(config);
         apiCalendar.listCalendars().then((response: any) => {
             console.log(response);
@@ -133,7 +137,7 @@ function Calendar({orderItem, token} : props) {
             console.log('need order item and token to get address');
         }
         if (orderItem && token) {
-            let url = getRoutingsURL + orderItem.orderNumber;
+            let url = getRoutingsURL + orderItem.jobNumber;
             fetch(url, {headers: {'accept': 'application/json', 'Authorization': 'Bearer ' + token}})
             .then(response => response.json())
             .then(json => setRoutings(json.Data))
@@ -164,7 +168,7 @@ function Calendar({orderItem, token} : props) {
 
     const handleRoutingChange = (event: SelectChangeEvent) => {
         setSelectedRouting(event.target.value);
-        console.log('clicked routing: ' + event.target.value);
+        //TODO: find the routing and get the duration out of it
     }
 
     const handleSchedule = () => {
@@ -172,11 +176,10 @@ function Calendar({orderItem, token} : props) {
         const startDate = value || dayjs();
         const endDate = startDate.add(parseInt(duration), 'hour');        
         const timeZone = "America/Chicago";
-        const summary = orderItem.jobNumber + ' ' + orderItem.partNumber;
-        const description = getDescription();
+        const summary = getSummary();
         const event = {
             summary,
-            description,
+            desciprtion: description || '',
             start: {
               dateTime: startDate.toISOString(),
               timeZone
@@ -196,7 +199,7 @@ function Calendar({orderItem, token} : props) {
          });
     };
 
-    const getDescription = () => {
+    const getSummary = () => {
         let description = '';
         //orderItem.partDescription
         if (salesID) {
@@ -230,7 +233,6 @@ function Calendar({orderItem, token} : props) {
         if (routingBox) {
             description += selectedRouting;
         }
-
         //const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox, routingBox } = checkboxState;
         return description;
     }
@@ -338,13 +340,24 @@ function Calendar({orderItem, token} : props) {
                         </InputLabel>
                         { routings &&
                         <Select value={selectedRouting} size="medium" labelId="routingsLabel" id="selectedRouting" onChange={handleRoutingChange} label="Duration">
-                            {routings.map((routing: Routing) => (
-                                <MenuItem key={routing?.stepNumber} value={routing?.description}>{routing?.description}</MenuItem>
+                            {routings.map((routing: Routing, idx) => (
+                                <MenuItem key={idx} value={routing?.workCenter}>{routing?.workCenter + " (" + routing?.description + "," + routing?.cycleTime + ")"}</MenuItem>
                             ))}
                         </Select>
                         }
                     </FormControl>
                     <FormControlLabel control={<Checkbox checked={routingBox} onChange={handleChecked} name={"routingBox"}/>} label={"Routing"}/>
+                </Grid>
+                <Grid container item direction="row" alignItems="center" >
+                <TextField
+                    size="medium"  
+                    id="outlined-required"
+                    label="Description"
+                    value={description}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                        setDescription(event.target.value)
+                    }}
+                    />
                 </Grid>
             </Grid>
         </Grid>

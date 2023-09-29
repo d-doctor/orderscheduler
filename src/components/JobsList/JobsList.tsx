@@ -39,8 +39,6 @@ function JobsList() {
     let fetchError = false;
     let skipRows = 0;
     while (!fetchError && fetchMore) {
-      console.log('in the loop', fetchError, ' ', fetchMore);
-      console.log('why', !fetchError && fetchMore)
       let url = reportType === "nonADA" ? urlNonADA : urlADA;
       if (skipRows > 0 ) {        
         url += '&skip=' + skipRows.toString();
