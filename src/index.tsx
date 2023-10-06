@@ -1,45 +1,19 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import Settings from './components/Settings/Settings';
-import JobsList from './components/JobsList/JobsList';
-import reportWebVitals from './reportWebVitals';
-import { BrowserRouter } from 'react-router-dom';
-import Navbar from './components/NavBar/NavBar';
-import {
-  createBrowserRouter,
-  RouterProvider,
-} from "react-router-dom";
-import { CssBaseline } from '@mui/material';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./index.css";
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
+import { app } from "./service/firebase";
 
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
+  document.getElementById("root") as HTMLElement
 );
-
-// const router = createBrowserRouter([
-//   {
-//     path: "*",
-//     element: <App />,
-//     children: [
-//       {
-//         path: "settings",
-//         element: <Settings />,
-//       },
-//       {
-//         path: "schedule",
-//         element: <JobsList />,
-//       },
-//     ],
-//   },
-  
-// ]);
 
 root.render(
   <React.StrictMode>
     {/* <RouterProvider router={router} /> */}
     {/* <BrowserRouter basename="/app"> */}
-      <App></App>
+    <App></App>
     {/* </BrowserRouter> */}
   </React.StrictMode>
 );
