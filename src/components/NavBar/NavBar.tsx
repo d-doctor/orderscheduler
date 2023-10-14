@@ -30,7 +30,7 @@ function Navbar() {
             Settings
           </Link>
         </div>
-        <CalendarLogin />
+        {/* <CalendarLogin /> */}
         <Login />
       </Toolbar>
     </>
