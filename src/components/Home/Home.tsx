@@ -1,13 +1,15 @@
-import React from 'react';
-import {Box} from '@mui/material';
+import React from "react";
+import { Alert, Box } from "@mui/material";
 
-function Home() {  
-    return (
-      <Box>
-        <p>Theres no place like home </p>
-      </Box>
-    );
-  }
-  
+function Home() {
+  return (
+    <Box>
+      <Alert severity="warning">
+        Login in the upper right, then continue to settings to connect to jobs
+        list.
+      </Alert>
+    </Box>
+  );
+}
+
 export default Home;
-  
