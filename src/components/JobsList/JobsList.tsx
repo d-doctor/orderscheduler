@@ -21,10 +21,11 @@ import {
 import "./JobsList.css";
 import Calendar from "../Calendar/Calendar";
 import { useRecoilValue } from "recoil";
-import { ec2TokenState } from "../../atoms/auth";
+import { userState, ec2TokenState } from "../../atoms/auth";
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
+  const user = useRecoilValue(userState);
   const [reportType, setReportType] = React.useState("nonADA");
   const [skipRows, setSkiprows] = React.useState(0);
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
@@ -226,9 +227,13 @@ function JobsList() {
         >
           Get Orders
         </Button>
+        {!user ||
+          (user.accessToken.length <= 0 && (
+            <Alert severity="warning">Must log in to continue</Alert>
+          ))}
         {!ec2token && (
           <Alert severity="warning">
-            Must log in and get token in settings tab to continue
+            Must click settings and get a valid token to continue
           </Alert>
         )}
       </Box>
@@ -293,9 +298,7 @@ function JobsList() {
       </div>         */}
       <div>
         <Divider textAlign="left">Selected Job</Divider>
-        {selectedorder && (
-          <Calendar orderItem={selectedorder} token={"getTokenfromatom"} />
-        )}
+        {selectedorder && <Calendar orderItem={selectedorder} />}
       </div>
     </div>
   );

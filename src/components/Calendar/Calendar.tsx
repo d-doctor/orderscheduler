@@ -19,7 +19,7 @@ import dayjs, { Dayjs } from "dayjs";
 // import { start } from 'repl';
 // import { DateTime } from 'luxon';
 import { useRecoilValue } from "recoil";
-import { ec2TokenState, userState } from "../../atoms/auth";
+import { ec2TokenState, userState, credentialState } from "../../atoms/auth";
 
 interface Data {
   jobNumber: string;
@@ -72,14 +72,8 @@ interface Routing {
   cycleTime: string;
 }
 
-// interface TimeCalendarType {
-//     dateTime?: string;
-//     timeZone: string;
-// };
-
 interface props {
   orderItem: Data;
-  token: string;
 }
 
 const config = {
@@ -92,9 +86,9 @@ const config = {
   ],
 };
 
-function Calendar({ orderItem, token }: props) {
+function Calendar({ orderItem }: props) {
   const ec2token = useRecoilValue(ec2TokenState);
-  const user = useRecoilValue(userState);
+  const credential = useRecoilValue(credentialState);
   const [value, setValue] = React.useState<Dayjs | null>(dayjs());
   const [duration, setDuration] = React.useState<string>("1");
   const [calendarList, setCalendarList] = React.useState<GoogCal[]>();
@@ -148,43 +142,52 @@ function Calendar({ orderItem, token }: props) {
 
   useEffect(() => {
     setValue(dayjs(orderItem.dueDate).hour(7));
-    const apiCalendar = new ApiCalendar(config);
-    apiCalendar.listCalendars().then((response: any) => {
-      console.log(response);
-      if (response.status === 200) {
-        console.log("set calendar", response.result.items);
-        setCalendarList(response.result.items);
+    if ((credential?.accessToken, ec2token)) {
+      let getCalendarListURL =
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+      fetch(getCalendarListURL, {
+        headers: {
+          accept: "application/json",
+          Authorization: "Bearer " + credential?.accessToken,
+        },
+      }).then((response) =>
+        response
+          .json()
+          .then((json) => {
+            console.log("calendar json: ", json);
+            setCalendarList(json.items);
+          })
+          .catch((e) => console.error(e))
+      );
+
+      if (orderItem && ec2token) {
+        let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
+        fetch(url, {
+          headers: {
+            accept: "application/json",
+            Authorization: "Bearer " + ec2token,
+          },
+        })
+          .then((response) => response.json())
+          .then((json) => setOrder(json.Data))
+          .catch((error) => console.error(error));
       } else {
-        console.log("failed response from google");
+        console.log("need order item and token to get address");
       }
-    });
-    if (orderItem && ec2token) {
-      let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
-      fetch(url, {
-        headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + ec2token,
-        },
-      })
-        .then((response) => response.json())
-        .then((json) => setOrder(json.Data))
-        .catch((error) => console.error(error));
-    } else {
-      console.log("need order item and token to get address");
+      if (orderItem && ec2token) {
+        let url = getRoutingsURL + orderItem.jobNumber;
+        fetch(url, {
+          headers: {
+            accept: "application/json",
+            Authorization: "Bearer " + ec2token,
+          },
+        })
+          .then((response) => response.json())
+          .then((json) => setRoutings(json.Data))
+          .catch((error) => console.error(error));
+      }
     }
-    if (orderItem && token) {
-      let url = getRoutingsURL + orderItem.jobNumber;
-      fetch(url, {
-        headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + token,
-        },
-      })
-        .then((response) => response.json())
-        .then((json) => setRoutings(json.Data))
-        .catch((error) => console.error(error));
-    }
-  }, [orderItem, token]);
+  }, [orderItem, credential?.accessToken, ec2token]);
 
   useEffect(() => {
     if (order) {
@@ -192,7 +195,7 @@ function Calendar({ orderItem, token }: props) {
       fetch(url, {
         headers: {
           accept: "application/json",
-          Authorization: "Bearer " + token,
+          Authorization: "Bearer " + ec2token,
         },
       })
         .then((response) => response.json())
@@ -201,7 +204,7 @@ function Calendar({ orderItem, token }: props) {
     } else {
       console.log("getting address requires order and token");
     }
-  }, [order, token]);
+  }, [order, ec2token]);
 
   const handleDurationChange = (event: SelectChangeEvent) => {
     setDuration(event.target.value);
@@ -218,14 +221,21 @@ function Calendar({ orderItem, token }: props) {
   };
 
   const handleSchedule = () => {
-    const apiCalendar = new ApiCalendar(config);
+    const insertEventURL =
+      "https://www.googleapis.com/calendar/v3/calendars/" +
+      selectedCalendar +
+      "/events";
+
+    // const apiCalendar = new ApiCalendar(config);
     const startDate = value || dayjs();
     const endDate = startDate.add(parseInt(duration), "hour");
     const timeZone = "America/Chicago";
     const summary = getSummary();
+    const where = addressBox ? getAddress() : "";
     const event = {
       summary,
-      desciprtion: description || "",
+      description: description || "",
+      location: where || "",
       start: {
         dateTime: startDate.toISOString(),
         timeZone,
@@ -235,15 +245,31 @@ function Calendar({ orderItem, token }: props) {
         timeZone,
       },
     };
-    console.log("did it send: ", event);
-    apiCalendar
-      .createEvent(event, selectedCalendar, "none")
-      .then((result: any) => {
-        console.log("result", result);
-      })
-      .catch((error: any) => {
-        console.log(error);
-      });
+    console.log("sending: ", event);
+    const postOpts = {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        Authorization: "Bearer " + credential?.accessToken,
+      },
+      body: JSON.stringify(event),
+    };
+    fetch(insertEventURL, postOpts)
+      .then((response) => response.json())
+      .then((json) => console.log("JASON: ", json));
+  };
+
+  const getAddress = () => {
+    let gaddr = "";
+    gaddr =
+      address?.shippingAddress1 +
+      " " +
+      address?.shippingCity +
+      " " +
+      address?.shippingState +
+      " " +
+      address?.shippingZipCode;
+    return gaddr;
   };
 
   const getSummary = () => {

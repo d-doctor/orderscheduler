@@ -2,36 +2,28 @@ import React from "react";
 import { firebaseAuth } from "../../service/firebase";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { Avatar, Button } from "@mui/material";
-import {
-  RecoilRoot,
-  atom,
-  selector,
-  useRecoilState,
-  useRecoilValue,
-  useSetRecoilState,
-} from "recoil";
-import { userState } from "../../atoms/auth";
+import { useRecoilValue, useSetRecoilState } from "recoil";
+import { userState, credentialState } from "../../atoms/auth";
 
 const provider = new GoogleAuthProvider();
+provider.addScope("https://www.googleapis.com/auth/calendar");
 
 function Login() {
   const user = useRecoilValue(userState);
   const setUserState = useSetRecoilState(userState);
+  const setCredentialState = useSetRecoilState(credentialState);
 
   const setUser = (user: any) => {
     setUserState(user);
   };
 
   const handleLoginClick = () => {
-    console.log("well hi");
     signInWithPopup(firebaseAuth, provider).then((result) => {
-      console.log(GoogleAuthProvider.credentialFromResult(result));
-      console.log("the result", result);
       setUser(result.user);
+      setCredentialState(GoogleAuthProvider.credentialFromResult(result));
     });
   };
 
-  //sometimes the buttons both display seperately, need to fix that to be only one - make it a login/logout
   return (
     <>
       {user.accessToken.length <= 0 && (
@@ -44,7 +36,7 @@ function Login() {
           Login To Continue
         </Button>
       )}
-      {user.accessToken.length >= 0 && (
+      {user.accessToken.length > 0 && (
         <>
           <Button variant="contained" size="medium">
             {user?.displayName}
