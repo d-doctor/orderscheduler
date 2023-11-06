@@ -1,5 +1,5 @@
 {
   "projects": {
-    "default": "se-job-scheduler"
+    "default": "se-data-job-scheduler"
   }
 }
