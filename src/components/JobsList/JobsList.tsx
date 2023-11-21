@@ -76,7 +76,6 @@ function JobsList() {
       })
         // eslint-disable-next-line no-loop-func
         .then((response) => {
-          console.log("reponse", response);
           if (response.status === 200) {
             return response.json();
           } else {

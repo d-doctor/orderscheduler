@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect } from "react";
-import ApiCalendar from "react-google-calendar-api";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import {
   Button,
@@ -14,12 +13,25 @@ import {
   MenuItem,
   SelectChangeEvent,
   TextField,
+  Dialog,
+  DialogTitle,
+  DialogActions,
 } from "@mui/material";
 import dayjs, { Dayjs } from "dayjs";
 // import { start } from 'repl';
 // import { DateTime } from 'luxon';
 import { useRecoilValue } from "recoil";
 import { ec2TokenState, userState, credentialState } from "../../atoms/auth";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  setDoc,
+  doc,
+  query,
+  onSnapshot,
+} from "firebase/firestore";
+import { firebaseAuth, db } from "../../service/firebase";
 
 interface Data {
   jobNumber: string;
@@ -69,22 +81,22 @@ interface Routing {
   employeeCode: string;
   partNumber: string;
   workCenter: string;
-  cycleTime: string;
+  cycleTime: number;
 }
 
 interface props {
   orderItem: Data;
 }
 
-const config = {
-  clientId:
-    "434182267777-fhh4rcscpj0acsite8331qlsiof6bc9s.apps.googleusercontent.com",
-  apiKey: "AIzaSyDIGRNTgKWiW8yqyVX_axs1rmW-1IdyOoA",
-  scope: "https://www.googleapis.com/auth/calendar",
-  discoveryDocs: [
-    "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
-  ],
-};
+// const config = {
+//   clientId:
+//     "434182267777-fhh4rcscpj0acsite8331qlsiof6bc9s.apps.googleusercontent.com",
+//   apiKey: "AIzaSyDIGRNTgKWiW8yqyVX_axs1rmW-1IdyOoA",
+//   scope: "https://www.googleapis.com/auth/calendar",
+//   discoveryDocs: [
+//     "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+//   ],
+// };
 
 function Calendar({ orderItem }: props) {
   const ec2token = useRecoilValue(ec2TokenState);
@@ -99,6 +111,8 @@ function Calendar({ orderItem }: props) {
     React.useState<string>("pickacalender");
   const [selectedRouting, setSelectedRouting] = React.useState<string>();
   const [description, setDescription] = React.useState<string>();
+  const [alertOpen, setAlertOpen] = React.useState(false);
+  const [alertText, setAlertText] = React.useState<string>("");
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
   const getOrderURLpt2 =
@@ -154,7 +168,6 @@ function Calendar({ orderItem }: props) {
         response
           .json()
           .then((json) => {
-            console.log("calendar json: ", json);
             setCalendarList(json.items);
           })
           .catch((e) => console.error(e))
@@ -212,21 +225,36 @@ function Calendar({ orderItem }: props) {
 
   const handleCalendarChange = (event: SelectChangeEvent) => {
     setSelectedCalendar(event.target.value);
-    console.log("clicked calendar " + event.target.value);
   };
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
     setSelectedRouting(event.target.value);
-    //TODO: find the routing and get the duration out of it
+    console.log("selected routing", event.target.value);
+    const thisRoute = routings?.filter(
+      (r) => r.workCenter === event.target.value
+    )[0];
+    if (thisRoute) {
+      if (thisRoute.cycleTime < 1.5) {
+        setDuration("1");
+      } else if (thisRoute.cycleTime < 2.5) {
+        setDuration("2");
+      } else if (thisRoute.cycleTime < 4) {
+        setDuration("4");
+      } else if (thisRoute.cycleTime <= 8) {
+        setDuration("8");
+      } else {
+        setDuration("8");
+        //TODO add second calendar day automaticallY
+      }
+    }
   };
 
-  const handleSchedule = () => {
+  const handleSchedule = async () => {
     const insertEventURL =
       "https://www.googleapis.com/calendar/v3/calendars/" +
       selectedCalendar +
       "/events";
 
-    // const apiCalendar = new ApiCalendar(config);
     const startDate = value || dayjs();
     const endDate = startDate.add(parseInt(duration), "hour");
     const timeZone = "America/Chicago";
@@ -245,7 +273,6 @@ function Calendar({ orderItem }: props) {
         timeZone,
       },
     };
-    console.log("sending: ", event);
     const postOpts = {
       method: "POST",
       headers: {
@@ -254,10 +281,70 @@ function Calendar({ orderItem }: props) {
       },
       body: JSON.stringify(event),
     };
-    fetch(insertEventURL, postOpts)
+    var htmlLink: string = "";
+    var eventId: string = "";
+    await fetch(insertEventURL, postOpts)
       .then((response) => response.json())
-      .then((json) => console.log("JASON: ", json));
+      .then((json) => {
+        console.log("INSERT RESULT: ", json);
+        htmlLink = json.htmlLink;
+        eventId = json.id;
+      });
+    addFirebaseJob(htmlLink, eventId);
   };
+
+  const addFirebaseJob = async (html: string, eventId: string) => {
+    try {
+      // const jobsref = collection(db, "/jobs", orderItem.jobNumber);
+      await setDoc(doc(db, "jobs", orderItem.jobNumber), {
+        jobNumber: orderItem.jobNumber,
+        originalDueDate: orderItem.dueDate,
+        updateDueDate: value?.toISOString(),
+        udpatedBy: firebaseAuth.currentUser?.email,
+        htmlLink: html,
+        calendar: selectedCalendar,
+        eventId: eventId,
+      }).then((a) => {
+        setAlertText("Successfully scheduled calendar" + a);
+        setAlertOpen(true);
+      });
+    } catch (f) {
+      setAlertText("Error sending job to SE data database");
+      setAlertOpen(true);
+      console.log(f);
+    }
+  };
+
+  // const lookupFirebaseJob = async (jobId: string) => {
+  //   try {
+  //     const jobsref = collection(db, "/jobs");
+  //     const q = query(jobsref);
+  //     const querySnapshot = await getDocs(q);
+  //     querySnapshot.forEach((doc) => {
+  //       console.log("but what if i want only one");
+  //       console.log(doc.id, " -> ", doc.data());
+  //     });
+  //   } catch (g) {
+  //     console.log("caught error g: ", g);
+  //   }
+  //   // try {
+  //   //   console.log("query another way");
+  //   //   const jobsref = collection(db, "/jobs");
+  //   //   console.log("query another way 2");
+  //   //   const q = query(jobsref);
+  //   //   console.log("query another way 3");
+  //   //   onSnapshot(q, (qs) => {
+  //   //     console.log("H3 CONSOLE");
+  //   //     let jobs: any = [];
+  //   //     qs.forEach((doc) => {
+  //   //       jobs.push(doc.data());
+  //   //       console.log("DOC", doc.id, " =D ", doc.data());
+  //   //     });
+  //   //   });
+  //   // } catch (u) {
+  //   //   console.log("caught error u", u);
+  //   // }
+  // };
 
   const getAddress = () => {
     let gaddr = "";
@@ -310,9 +397,12 @@ function Calendar({ orderItem }: props) {
     return description;
   };
 
+  const handleCloseDialog = () => {
+    setAlertOpen(false);
+  };
+
   return (
     <>
-      {/* Job Number (xxxxx-xx) / Customer Name / Part No / .... Resources ... Address ...  */}
       <Grid container spacing="2">
         <Grid container item xs={5} direction="column">
           <FormGroup>
@@ -564,6 +654,14 @@ function Calendar({ orderItem }: props) {
           </Grid>
         </Grid>
       </Grid>
+      <Dialog open={alertOpen} onClose={handleCloseDialog}>
+        <DialogTitle>{alertText}</DialogTitle>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} autoFocus>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

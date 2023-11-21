@@ -1,9 +1,11 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, setLogLevel } from "firebase/app";
 import { getAuth } from "firebase/auth";
-
+import { getFirestore } from "firebase/firestore";
+// import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
 const firebaseConfig = {
   apiKey: "AIzaSyDdXPJSEX91iTv0Sn5yaTDhOC_-DAhlbY4",
   authDomain: "se-data-job-scheduler.firebaseapp.com",
+  databaseURL: "https://se-data-job-scheduler-default-rtdb.firebaseio.com",
   projectId: "se-data-job-scheduler",
   storageBucket: "se-data-job-scheduler.appspot.com",
   messagingSenderId: "973241811935",
@@ -13,9 +15,14 @@ const firebaseConfig = {
 
 const firebaseapp = initializeApp(firebaseConfig);
 
+const db = getFirestore(firebaseapp);
+setLogLevel("debug");
+
 export default firebaseapp;
 
 export const firebaseAuth = getAuth(firebaseapp);
+
+export { db };
 
 // firebase.initializeApp(firebaseConfig);
 
