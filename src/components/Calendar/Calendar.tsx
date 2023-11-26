@@ -365,7 +365,11 @@ function Calendar({ orderItem }: props) {
         calendar: selectedCalendar,
         eventId: eventId,
         htmlLink: html,
-        routing: selectedRouting || "",
+        routing: selectedRouting
+          ? selectedRouting?.length > 0
+            ? selectedRouting
+            : ""
+          : "",
         updatedDueDate: value?.toISOString(),
       },
     ];
