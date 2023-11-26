@@ -17,7 +17,7 @@
     "@types/react-dom": "^18.2.6",
     "dayjs": "^1.11.9",
     "eslint": "^8.45.0",
-    "firebase": "^10.5.0",
+    "firebase": "^10.6.0",
     "luxon": "^3.3.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -54,6 +54,7 @@
     ]
   },
   "devDependencies": {
-    "@types/react-router-dom": "^5.3.3"
+    "@types/react-router-dom": "^5.3.3",
+    "@babel/plugin-proposal-private-property-in-object": "7.21.11"
   }
 }

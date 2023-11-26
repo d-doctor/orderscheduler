@@ -26,10 +26,10 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   setDoc,
   doc,
-  query,
-  onSnapshot,
+  DocumentData,
 } from "firebase/firestore";
 import { firebaseAuth, db } from "../../service/firebase";
 
@@ -113,6 +113,8 @@ function Calendar({ orderItem }: props) {
   const [description, setDescription] = React.useState<string>();
   const [alertOpen, setAlertOpen] = React.useState(false);
   const [alertText, setAlertText] = React.useState<string>("");
+  const [foundOnCalendar, setFoundOnCalendar] = React.useState<boolean>(false);
+  const [firebaseDocData, setFirebaseDocData] = React.useState<DocumentData>();
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
   const getOrderURLpt2 =
@@ -130,9 +132,9 @@ function Calendar({ orderItem }: props) {
     jobNumber: true,
     partNumber: true,
     customerDescription: true,
-    location: false,
-    addressBox: false,
-    routingBox: false,
+    location: true,
+    addressBox: true,
+    routingBox: true,
   });
   const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
     setCheckboxState({
@@ -244,17 +246,12 @@ function Calendar({ orderItem }: props) {
         setDuration("8");
       } else {
         setDuration("8");
-        //TODO add second calendar day automaticallY
+        //TODO add second calendar day automatically
       }
     }
   };
 
-  const handleSchedule = async () => {
-    const insertEventURL =
-      "https://www.googleapis.com/calendar/v3/calendars/" +
-      selectedCalendar +
-      "/events";
-
+  const buildEvent = () => {
     const startDate = value || dayjs();
     const endDate = startDate.add(parseInt(duration), "hour");
     const timeZone = "America/Chicago";
@@ -273,6 +270,42 @@ function Calendar({ orderItem }: props) {
         timeZone,
       },
     };
+    return event;
+  };
+
+  const handleSchedule = async () => {
+    if (foundOnCalendar) {
+      updateCalendarEvent();
+    } else {
+      insertCalendarEvent();
+    }
+  };
+
+  const insertCalendarEvent = async () => {
+    const insertEventURL =
+      "https://www.googleapis.com/calendar/v3/calendars/" +
+      selectedCalendar +
+      "/events";
+
+    const event = buildEvent();
+    // const startDate = value || dayjs();
+    // const endDate = startDate.add(parseInt(duration), "hour");
+    // const timeZone = "America/Chicago";
+    // const summary = getSummary();
+    // const where = addressBox ? getAddress() : "";
+    // const event = {
+    //   summary,
+    //   description: description || "",
+    //   location: where || "",
+    //   start: {
+    //     dateTime: startDate.toISOString(),
+    //     timeZone,
+    //   },
+    //   end: {
+    //     dateTime: endDate.toISOString(),
+    //     timeZone,
+    //   },
+    // };
     const postOpts = {
       method: "POST",
       headers: {
@@ -289,23 +322,69 @@ function Calendar({ orderItem }: props) {
         console.log("INSERT RESULT: ", json);
         htmlLink = json.htmlLink;
         eventId = json.id;
+      })
+      .catch((e) => {
+        console.log("caught error scheduling");
+      });
+    addFirebaseJob(htmlLink, eventId);
+  };
+
+  const updateCalendarEvent = async () => {
+    const putEventURL =
+      "https://www.googleapis.com/calendar/v3/calendars/" +
+      firebaseDocData?.calendarId +
+      "/events/" +
+      firebaseDocData?.eventId;
+    const event = buildEvent();
+    const putOpts = {
+      method: "PUT",
+      headers: {
+        accept: "application/json",
+        Authorization: "Bearer " + credential?.accessToken,
+      },
+      body: JSON.stringify(event),
+    };
+    var htmlLink: string = "";
+    var eventId: string = "";
+    await fetch(putEventURL, putOpts)
+      .then((response) => response.json())
+      .then((json) => {
+        console.log("INSERT RESULT: ", json);
+        htmlLink = json.htmlLink;
+        eventId = json.id;
+      })
+      .catch((e) => {
+        console.log("caught error scheduling");
       });
     addFirebaseJob(htmlLink, eventId);
   };
 
   const addFirebaseJob = async (html: string, eventId: string) => {
+    const events = [
+      {
+        calendar: selectedCalendar,
+        eventId: eventId,
+        htmlLink: html,
+        routing: selectedRouting || "",
+        updatedDueDate: value?.toISOString(),
+      },
+    ];
+    console.log("trynna schedy", events);
+    console.log("trynna schedule job number", orderItem.jobNumber);
+    console.log("trynna schedule orderNumber", orderItem.orderNumber);
+    console.log("trynna schedule originalDueDate", orderItem.dueDate);
+    console.log("trynna schedule updatedDueDate", value?.toISOString());
+    console.log("trynna schedule udpatedBy", firebaseAuth.currentUser?.email);
     try {
       // const jobsref = collection(db, "/jobs", orderItem.jobNumber);
       await setDoc(doc(db, "jobs", orderItem.jobNumber), {
         jobNumber: orderItem.jobNumber,
+        orderNumber: orderItem.orderNumber,
         originalDueDate: orderItem.dueDate,
-        updateDueDate: value?.toISOString(),
         udpatedBy: firebaseAuth.currentUser?.email,
-        htmlLink: html,
-        calendar: selectedCalendar,
-        eventId: eventId,
+        events: events,
       }).then((a) => {
-        setAlertText("Successfully scheduled calendar" + a);
+        setAlertText("Successfully scheduled calendar Event");
         setAlertOpen(true);
       });
     } catch (f) {
@@ -313,7 +392,27 @@ function Calendar({ orderItem }: props) {
       setAlertOpen(true);
       console.log(f);
     }
+    lookupFirebaseJob();
   };
+
+  const lookupFirebaseJob = useCallback(async () => {
+    const singleJobRef = doc(db, "jobs", orderItem.jobNumber);
+    const jobSnapshot = await getDoc(singleJobRef);
+
+    if (jobSnapshot.exists()) {
+      setFoundOnCalendar(true);
+      setFirebaseDocData(jobSnapshot.data());
+      console.log("set the date to this? ", jobSnapshot.data().updatedDueDate);
+      setValue(jobSnapshot.data().updatedDueDate);
+      console.log("found the job ", jobSnapshot.data());
+    } else {
+      setFoundOnCalendar(false);
+    }
+  }, [orderItem.jobNumber]);
+
+  useEffect(() => {
+    lookupFirebaseJob();
+  }, [orderItem, lookupFirebaseJob]);
 
   // const lookupFirebaseJob = async (jobId: string) => {
   //   try {
@@ -404,7 +503,7 @@ function Calendar({ orderItem }: props) {
   return (
     <>
       <Grid container spacing="2">
-        <Grid container item xs={5} direction="column">
+        <Grid container item xs={4} direction="column">
           <FormGroup>
             <Grid container item direction="row" alignItems="center">
               <Grid item xs={3}>
@@ -548,8 +647,48 @@ function Calendar({ orderItem }: props) {
             </Grid>
           </FormGroup>
         </Grid>
-        <Grid container item xs={7} direction="column" spacing="4">
-          <Grid container item direction="row" alignItems="center">
+        <Grid container xs={7} direction="column" spacing={2}>
+          <Grid
+            container
+            item
+            direction="row"
+            alignItems="center"
+            columnGap={1}
+          >
+            <FormControl style={{ minWidth: 120 }}>
+              <InputLabel id="routingsLabel">Routings</InputLabel>
+              {routings && (
+                <Select
+                  value={selectedRouting}
+                  size="medium"
+                  labelId="routingsLabel"
+                  id="selectedRouting"
+                  onChange={handleRoutingChange}
+                  label="Duration"
+                >
+                  {routings.map((routing: Routing, idx) => (
+                    <MenuItem key={idx} value={routing?.workCenter}>
+                      {routing?.workCenter +
+                        " (" +
+                        routing?.description +
+                        "," +
+                        routing?.cycleTime +
+                        ")"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={routingBox}
+                  onChange={handleChecked}
+                  name={"routingBox"}
+                />
+              }
+              label={""}
+            />
             <DateTimePicker
               value={value}
               onChange={(newValue) => setValue(newValue)}
@@ -592,56 +731,6 @@ function Calendar({ orderItem }: props) {
                 </Select>
               </FormControl>
             )}
-            <Button
-              disabled={
-                !selectedCalendar || selectedCalendar === "pickacalender"
-              }
-              variant="contained"
-              size="large"
-              className="login"
-              onClick={handleSchedule}
-            >
-              {" "}
-              Schedule Google Calendar{" "}
-            </Button>
-          </Grid>
-          <Grid container item direction="row" alignItems="center">
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel id="routingsLabel">Routings</InputLabel>
-              {routings && (
-                <Select
-                  value={selectedRouting}
-                  size="medium"
-                  labelId="routingsLabel"
-                  id="selectedRouting"
-                  onChange={handleRoutingChange}
-                  label="Duration"
-                >
-                  {routings.map((routing: Routing, idx) => (
-                    <MenuItem key={idx} value={routing?.workCenter}>
-                      {routing?.workCenter +
-                        " (" +
-                        routing?.description +
-                        "," +
-                        routing?.cycleTime +
-                        ")"}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            </FormControl>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={routingBox}
-                  onChange={handleChecked}
-                  name={"routingBox"}
-                />
-              }
-              label={"Routing"}
-            />
-          </Grid>
-          <Grid container item direction="row" alignItems="center">
             <TextField
               size="medium"
               id="outlined-required"
@@ -651,7 +740,31 @@ function Calendar({ orderItem }: props) {
                 setDescription(event.target.value);
               }}
             />
+            <Button
+              disabled={
+                !selectedCalendar || selectedCalendar === "pickacalender"
+              }
+              variant="contained"
+              size="medium"
+              className="saveButton"
+              onClick={handleSchedule}
+            >
+              Save
+            </Button>
           </Grid>
+          {/* {foundOnCalendar && (
+            <Grid>
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={() => {
+                  window.open(firebaseDocData?.htmlLink);
+                }}
+              >
+                View on calendar
+              </Button>
+            </Grid>
+          )} */}
         </Grid>
       </Grid>
       <Dialog open={alertOpen} onClose={handleCloseDialog}>
