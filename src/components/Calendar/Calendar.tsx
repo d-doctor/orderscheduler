@@ -407,7 +407,7 @@ function Calendar({ orderItem }: props) {
       setFoundOnCalendar(true);
       setFirebaseDocData(jobSnapshot.data());
       console.log("set the date to this? ", jobSnapshot.data().updatedDueDate);
-      setValue(jobSnapshot.data().updatedDueDate);
+      setValue(jobSnapshot.data().event[0].updatedDueDate);
       console.log("found the job ", jobSnapshot.data());
     } else {
       setFoundOnCalendar(false);
