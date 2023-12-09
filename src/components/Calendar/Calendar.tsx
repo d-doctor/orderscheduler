@@ -109,12 +109,12 @@ function Calendar({ orderItem }: props) {
   const [address, setAddress] = React.useState<ShippingAddress>();
   const [selectedCalendar, setSelectedCalendar] =
     React.useState<string>("pickacalender");
-  const [selectedRouting, setSelectedRouting] = React.useState<string>('');
+  const [selectedRouting, setSelectedRouting] = React.useState<string>("");
   const [description, setDescription] = React.useState<string>();
   const [alertOpen, setAlertOpen] = React.useState(false);
   const [alertText, setAlertText] = React.useState<string>("");
   const [foundOnCalendar, setFoundOnCalendar] = React.useState<boolean>(false);
-  const [ foundOnGoogle, setFoundOnGoogle ] = React.useState<boolean>(false);
+  const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>(false);
   const [firebaseDocData, setFirebaseDocData] = React.useState<DocumentData>();
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
@@ -333,7 +333,7 @@ function Calendar({ orderItem }: props) {
   const updateCalendarEvent = async () => {
     const putEventURL =
       "https://www.googleapis.com/calendar/v3/calendars/" +
-      firebaseDocData?.events[0].events.calendar +
+      firebaseDocData?.events[0].calendar +
       "/events/" +
       firebaseDocData?.events[0].eventId;
     const event = buildEvent();
@@ -401,8 +401,11 @@ function Calendar({ orderItem }: props) {
     if (jobSnapshot.exists()) {
       setFoundOnCalendar(true);
       setFirebaseDocData(jobSnapshot.data());
-      console.log("set the date to this? ", jobSnapshot.data().updatedDueDate);
-      setValue(jobSnapshot.data().event[0].updatedDueDate);
+      console.log(
+        "set the date to this? ",
+        jobSnapshot.data().events[0].updatedDueDate
+      );
+      setValue(dayjs(jobSnapshot.data().events[0].updatedDueDate));
       console.log("found the job ", jobSnapshot.data());
     } else {
       setFoundOnCalendar(false);
@@ -410,31 +413,32 @@ function Calendar({ orderItem }: props) {
   }, [orderItem.jobNumber]);
 
   const lookupGoogleEvent = useCallback(async () => {
-    console.log('tryin lokoup event', firebaseDocData); 
+    console.log("tryin lokoup event", firebaseDocData);
     if (credential?.accessToken) {
-      let getCalendarURL = 
-      "https://www.googleapis.com/calendar/v3/calendars/" + firebaseDocData?.events[0].calendar + "/events/" + firebaseDocData?.events[0].eventId;
+      let getCalendarURL =
+        "https://www.googleapis.com/calendar/v3/calendars/" +
+        firebaseDocData?.events[0].calendar +
+        "/events/" +
+        firebaseDocData?.events[0].eventId;
       fetch(getCalendarURL, {
         headers: {
           accept: "application/json",
           Authorization: "Bearer " + credential?.accessToken,
         },
-      }).then((response) => 
-      response.json()
-      .then((json) => {
-        console.log('was the calendar json found', json);
-      }))
+      }).then((response) =>
+        response.json().then((json) => {
+          console.log("was the calendar json found", json);
+        })
+      );
     }
   }, [firebaseDocData, credential?.accessToken]);
-
 
   useEffect(() => {
     lookupFirebaseJob();
     if (foundOnCalendar) {
-      console.log('is it found on calendar', foundOnCalendar);
+      console.log("is it found on calendar", foundOnCalendar);
       lookupGoogleEvent();
     }
-    
   }, [orderItem, foundOnCalendar, lookupFirebaseJob, lookupGoogleEvent]);
 
   // const lookupFirebaseJob = async (jobId: string) => {
@@ -467,7 +471,6 @@ function Calendar({ orderItem }: props) {
   //   //   console.log("caught error u", u);
   //   // }
   // };
-
 
   const getAddress = () => {
     let gaddr = "";
@@ -683,7 +686,7 @@ function Calendar({ orderItem }: props) {
               <InputLabel id="routingsLabel">Routings</InputLabel>
               {routings && (
                 <Select
-                  value={selectedRouting || ''}
+                  value={selectedRouting || ""}
                   size="medium"
                   labelId="routingsLabel"
                   id="selectedRouting"
