@@ -277,7 +277,8 @@ function Event({
           setDateValue(dayjs(googleCalendarEvent.start.dateTime));
           let startD = dayjs(googleCalendarEvent.start.dateTime);
           let endD = dayjs(googleCalendarEvent.end.dateTime);
-          setDuration(endD.diff(startD, "hours"));
+          setDuration(endD.diff(startD, "hours").toString());
+          //this is prob a bad idea in the case where it gets rescheduled to a weird length
         }
       } else {
         console.log("setting date to ", dayjs(firebaseEvent?.updatedDueDate));
