@@ -1,121 +1,57 @@
-import React, { useCallback, useEffect } from "react";
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import React, { useCallback, useEffect, useState } from "react";
+// import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import {
   Button,
   Checkbox,
   FormGroup,
   FormControlLabel,
-  FormControl,
   FormLabel,
   Grid,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-  TextField,
   Dialog,
   DialogTitle,
   DialogActions,
 } from "@mui/material";
-import dayjs, { Dayjs } from "dayjs";
-// import { start } from 'repl';
-// import { DateTime } from 'luxon';
 import { useRecoilValue } from "recoil";
-import { ec2TokenState, userState, credentialState } from "../../atoms/auth";
+import { ec2TokenState, credentialState } from "../../atoms/auth";
 import {
-  collection,
-  addDoc,
-  getDocs,
   getDoc,
+  getDocs,
+  addDoc,
   setDoc,
   doc,
   DocumentData,
+  collection,
 } from "firebase/firestore";
 import { firebaseAuth, db } from "../../service/firebase";
-
-interface Data {
-  jobNumber: string;
-  orderNumber: string;
-  partNumber: string;
-  partDescription: string;
-  dueDate: Date;
-  uniqueID: number;
-  unitPrice: number;
-  quantityOrdered: number;
-  orderTotal: number;
-  dueDateString: string;
-}
-
-interface GoogCal {
-  kind: string;
-  etag: string;
-  accessRole: string;
-  colorId: string;
-
-  id: string;
-  summary: string;
-}
-
-interface ShippingAddress {
-  customerCode: string;
-  shippingAddress1: string;
-  shippingCity: string;
-  shippingState: string;
-  shippingZipCode: string;
-  shippingCountry: string;
-}
-
-interface Order {
-  salesID: string;
-  orderNumber: string;
-  customerCode: string;
-  customerDescription: string;
-  location: string;
-  dateEntered: Date;
-}
-
-interface Routing {
-  stepNumber: number;
-  departmentNumber: string;
-  description: string;
-  employeeCode: string;
-  partNumber: string;
-  workCenter: string;
-  cycleTime: number;
-}
+import {
+  Data,
+  Routing,
+  ShippingAddress,
+  Order,
+} from "../../interfaces/VendorModels";
+import { GoogCal } from "../../interfaces/GoogleModels";
+import { FirebaseEvent } from "../../interfaces/FirebaseModels";
+import Event from "../Event/Event";
+import dayjs from "dayjs";
 
 interface props {
   orderItem: Data;
 }
 
-// const config = {
-//   clientId:
-//     "434182267777-fhh4rcscpj0acsite8331qlsiof6bc9s.apps.googleusercontent.com",
-//   apiKey: "AIzaSyDIGRNTgKWiW8yqyVX_axs1rmW-1IdyOoA",
-//   scope: "https://www.googleapis.com/auth/calendar",
-//   discoveryDocs: [
-//     "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
-//   ],
-// };
-
 function Calendar({ orderItem }: props) {
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
-  const [value, setValue] = React.useState<Dayjs | null>(dayjs());
-  const [duration, setDuration] = React.useState<string>("1");
-  const [calendarList, setCalendarList] = React.useState<GoogCal[]>();
-  const [order, setOrder] = React.useState<Order>();
-  const [routings, setRoutings] = React.useState<Routing[]>();
-  const [address, setAddress] = React.useState<ShippingAddress>();
-  const [selectedCalendar, setSelectedCalendar] =
-    React.useState<string>("pickacalender");
-  const [selectedRouting, setSelectedRouting] = React.useState<string>("");
-  const [description, setDescription] = React.useState<string>();
-  const [alertOpen, setAlertOpen] = React.useState(false);
-  const [alertText, setAlertText] = React.useState<string>("");
-  const [foundOnCalendar, setFoundOnCalendar] = React.useState<boolean>(false);
-  const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>(false);
-  const [firebaseDocData, setFirebaseDocData] = React.useState<DocumentData>();
+  const [calendarList, setCalendarList] = useState<GoogCal[]>();
+  const [order, setOrder] = useState<Order>();
+  const [routings, setRoutings] = useState<Routing[]>();
+  const [address, setAddress] = useState<ShippingAddress>();
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertText, setAlertText] = useState<string>("");
+  const [foundOnFirebase, setFoundOnFirebase] = useState<boolean>();
+  const [firebaseDocData, setFirebaseDocData] = useState<DocumentData>();
+  const [descriptionPrefix, setDescriptionPrefix] = useState<string>();
+  const [displayAddress, setDisplayAddress] = useState<string>();
+  const [orderEvents, setOrderEvents] = useState<FirebaseEvent[]>();
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
   const getOrderURLpt2 =
@@ -153,12 +89,10 @@ function Calendar({ orderItem }: props) {
     customerDescription,
     location,
     addressBox,
-    routingBox,
   } = checkboxState;
-  //{customerCode}/{location}
 
   useEffect(() => {
-    setValue(dayjs(orderItem.dueDate).hour(7));
+    // setValue(dayjs(orderItem.dueDate).hour(7));
     if ((credential?.accessToken, ec2token)) {
       let getCalendarListURL =
         "https://www.googleapis.com/calendar/v3/users/me/calendarList";
@@ -217,275 +151,162 @@ function Calendar({ orderItem }: props) {
         .then((response) => response.json())
         .then((json) => setAddress(json.Data))
         .catch((error) => console.error(error));
-    } else {
-      console.log("getting address requires order and token");
     }
   }, [order, ec2token]);
 
-  const handleDurationChange = (event: SelectChangeEvent) => {
-    setDuration(event.target.value);
-  };
-
-  const handleCalendarChange = (event: SelectChangeEvent) => {
-    setSelectedCalendar(event.target.value);
-  };
-
-  const handleRoutingChange = (event: SelectChangeEvent) => {
-    setSelectedRouting(event.target.value);
-    console.log("selected routing", event.target.value);
-    const thisRoute = routings?.filter(
-      (r) => r.workCenter === event.target.value
-    )[0];
-    if (thisRoute) {
-      if (thisRoute.cycleTime < 1.5) {
-        setDuration("1");
-      } else if (thisRoute.cycleTime < 2.5) {
-        setDuration("2");
-      } else if (thisRoute.cycleTime < 4) {
-        setDuration("4");
-      } else if (thisRoute.cycleTime <= 8) {
-        setDuration("8");
+  const lookupFirebaseJob = useCallback(() => {
+    console.log("function lookupfirebasejob");
+    const singleJobRef = doc(db, "jobs", orderItem.jobNumber);
+    const jobSnapshot = getDoc(singleJobRef);
+    jobSnapshot.then((a) => {
+      console.log("in the then of jobsnapshot", a);
+      if (a.exists()) {
+        setFoundOnFirebase(true);
+        setFirebaseDocData(a.data());
+        console.log("found the job ", a.data());
+        const eventsSnapshot = getDocs(
+          collection(db, "jobs", orderItem.jobNumber, "events")
+        );
+        eventsSnapshot.then((a) => {
+          console.log("HERE IS YOUR EVENTS", a);
+          const events: FirebaseEvent[] = [];
+          a.forEach((doc) => {
+            const docData = doc.data();
+            events.push({
+              id: doc.id,
+              calendar: docData.calendar,
+              eventId: docData.eventId,
+              routing: docData.routing,
+              htmlLink: docData.htmlLink,
+              updatedDueDate: docData.updatedDueDate,
+            });
+            console.log("events ", events);
+            setOrderEvents(events);
+          });
+        });
       } else {
-        setDuration("8");
-        //TODO add second calendar day automatically
+        setFirebaseDocData(undefined);
+        setFoundOnFirebase(false);
       }
-    }
-  };
+    });
+    // if (jobSnapshot.exists()) {
+    // setFoundOnFirebase(true);
+    //TODO remove set of doc data do we even need it here?
+    // setFirebaseDocData(jobSnapshot.data());
+    // console.log(
+    //   "set the date to this? ",
+    //   jobSnapshot.data().events[0].updatedDueDate
+    // );
+    // setValue(dayjs(jobSnapshot.data().events[0].updatedDueDate));
+    // console.log("found the job ", jobSnapshot.data());
+    // const eventsSnapshot = await getDocs(
+    //   collection(db, "jobs", orderItem.jobNumber, "events")
+    // );
+    // console.log("HERE IS YOUR EVENTS", eventsSnapshot);
+    // } else {
+    //   setFirebaseDocData(undefined);
+    //   setFoundOnFirebase(false);
+    // }
+  }, [orderItem.jobNumber]);
 
-  const buildEvent = () => {
-    const startDate = value || dayjs();
-    const endDate = startDate.add(parseInt(duration), "hour");
-    const timeZone = "America/Chicago";
-    const summary = getSummary();
-    const where = addressBox ? getAddress() : "";
-    const event = {
-      summary,
-      description: description || "",
-      location: where || "",
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone,
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone,
-      },
-    };
-    return event;
-  };
-
-  const handleSchedule = async () => {
-    if (foundOnCalendar) {
-      updateCalendarEvent();
-    } else {
-      insertCalendarEvent();
-    }
-  };
-
-  const insertCalendarEvent = async () => {
-    const insertEventURL =
-      "https://www.googleapis.com/calendar/v3/calendars/" +
-      selectedCalendar +
-      "/events";
-
-    const event = buildEvent();
-    // const startDate = value || dayjs();
-    // const endDate = startDate.add(parseInt(duration), "hour");
-    // const timeZone = "America/Chicago";
-    // const summary = getSummary();
-    // const where = addressBox ? getAddress() : "";
-    // const event = {
-    //   summary,
-    //   description: description || "",
-    //   location: where || "",
-    //   start: {
-    //     dateTime: startDate.toISOString(),
-    //     timeZone,
-    //   },
-    //   end: {
-    //     dateTime: endDate.toISOString(),
-    //     timeZone,
-    //   },
-    // };
-    const postOpts = {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        Authorization: "Bearer " + credential?.accessToken,
-      },
-      body: JSON.stringify(event),
-    };
-    var htmlLink: string = "";
-    var eventId: string = "";
-    await fetch(insertEventURL, postOpts)
-      .then((response) => response.json())
-      .then((json) => {
-        console.log("INSERT RESULT: ", json);
-        htmlLink = json.htmlLink;
-        eventId = json.id;
-      })
-      .catch((e) => {
-        console.log("caught error scheduling");
-      });
-    addFirebaseJob(htmlLink, eventId);
-  };
-
-  const updateCalendarEvent = async () => {
-    const putEventURL =
-      "https://www.googleapis.com/calendar/v3/calendars/" +
-      firebaseDocData?.events[0].calendar +
-      "/events/" +
-      firebaseDocData?.events[0].eventId;
-    const event = buildEvent();
-    const putOpts = {
-      method: "PUT",
-      headers: {
-        accept: "application/json",
-        Authorization: "Bearer " + credential?.accessToken,
-      },
-      body: JSON.stringify(event),
-    };
-    var htmlLink: string = "";
-    var eventId: string = "";
-    await fetch(putEventURL, putOpts)
-      .then((response) => response.json())
-      .then((json) => {
-        console.log("INSERT RESULT: ", json);
-        htmlLink = json.htmlLink;
-        eventId = json.id;
-      })
-      .catch((e) => {
-        console.log("caught error scheduling");
-      });
-    addFirebaseJob(htmlLink, eventId);
-  };
-
-  const addFirebaseJob = async (html: string, eventId: string) => {
-    const events = [
-      {
-        calendar: selectedCalendar,
-        eventId: eventId,
-        htmlLink: html,
-        routing: selectedRouting
-          ? selectedRouting?.length > 0
-            ? selectedRouting
-            : ""
-          : "",
-        updatedDueDate: value?.toISOString(),
-      },
-    ];
+  const addEmptyEvent = useCallback(async () => {
+    console.log("try adding an empty event");
     try {
-      // const jobsref = collection(db, "/jobs", orderItem.jobNumber);
+      const job = doc(db, "jobs", orderItem.jobNumber);
+      const eventsCollection = collection(job, "events");
+      await addDoc(eventsCollection, {
+        calendar: "",
+        eventId: "",
+        htmlLink: "",
+        routing: "",
+        updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
+        // })
+        // await setDoc(doc(db, "jobs", orderItem.jobNumber, "events"), {
+        //   calendar: "",
+        //   eventId: "",
+        //   htmlLink: "",
+        //   routing: "",
+        //   updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
+      }).then((a) => {
+        console.log("added events with an empty doc");
+        setAlertText("No existing calendar items found - ready to schedule");
+        setAlertOpen(true);
+        lookupFirebaseJob();
+      });
+    } catch (f) {
+      console.log("caught error adding empty event", f);
+    }
+  }, [lookupFirebaseJob, orderItem.dueDate, orderItem.jobNumber]);
+
+  const addFirebaseJob = useCallback(async () => {
+    try {
       await setDoc(doc(db, "jobs", orderItem.jobNumber), {
         jobNumber: orderItem.jobNumber,
         orderNumber: orderItem.orderNumber,
         originalDueDate: orderItem.dueDate,
         udpatedBy: firebaseAuth.currentUser?.email,
-        events: events,
       }).then((a) => {
-        setAlertText("Successfully scheduled calendar Event");
-        setAlertOpen(true);
+        addEmptyEvent();
       });
     } catch (f) {
       setAlertText("Error sending job to SE data database");
       setAlertOpen(true);
       console.log(f);
     }
-    lookupFirebaseJob();
-  };
-
-  const lookupFirebaseJob = useCallback(async () => {
-    const singleJobRef = doc(db, "jobs", orderItem.jobNumber);
-    const jobSnapshot = await getDoc(singleJobRef);
-
-    if (jobSnapshot.exists()) {
-      setFoundOnCalendar(true);
-      setFirebaseDocData(jobSnapshot.data());
-      console.log(
-        "set the date to this? ",
-        jobSnapshot.data().events[0].updatedDueDate
-      );
-      setValue(dayjs(jobSnapshot.data().events[0].updatedDueDate));
-      console.log("found the job ", jobSnapshot.data());
-    } else {
-      setFoundOnCalendar(false);
-    }
-  }, [orderItem.jobNumber]);
-
-  const lookupGoogleEvent = useCallback(async () => {
-    console.log("tryin lokoup event", firebaseDocData);
-    if (credential?.accessToken) {
-      let getCalendarURL =
-        "https://www.googleapis.com/calendar/v3/calendars/" +
-        firebaseDocData?.events[0].calendar +
-        "/events/" +
-        firebaseDocData?.events[0].eventId;
-      fetch(getCalendarURL, {
-        headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + credential?.accessToken,
-        },
-      }).then((response) =>
-        response.json().then((json) => {
-          console.log("was the calendar json found", json);
-        })
-      );
-    }
-  }, [firebaseDocData, credential?.accessToken]);
+  }, [
+    addEmptyEvent,
+    orderItem.dueDate,
+    orderItem.jobNumber,
+    orderItem.orderNumber,
+  ]);
 
   useEffect(() => {
-    lookupFirebaseJob();
-    if (foundOnCalendar) {
-      console.log("is it found on calendar", foundOnCalendar);
-      lookupGoogleEvent();
+    console.log("triggered firebasedocdata useeffect");
+    if (firebaseDocData) {
+      console.log("there is firebase doc data", firebaseDocData);
+    } else {
+      console.log("there is no doc data");
     }
-  }, [orderItem, foundOnCalendar, lookupFirebaseJob, lookupGoogleEvent]);
+  }, [firebaseDocData]);
 
-  // const lookupFirebaseJob = async (jobId: string) => {
-  //   try {
-  //     const jobsref = collection(db, "/jobs");
-  //     const q = query(jobsref);
-  //     const querySnapshot = await getDocs(q);
-  //     querySnapshot.forEach((doc) => {
-  //       console.log("but what if i want only one");
-  //       console.log(doc.id, " -> ", doc.data());
-  //     });
-  //   } catch (g) {
-  //     console.log("caught error g: ", g);
-  //   }
-  //   // try {
-  //   //   console.log("query another way");
-  //   //   const jobsref = collection(db, "/jobs");
-  //   //   console.log("query another way 2");
-  //   //   const q = query(jobsref);
-  //   //   console.log("query another way 3");
-  //   //   onSnapshot(q, (qs) => {
-  //   //     console.log("H3 CONSOLE");
-  //   //     let jobs: any = [];
-  //   //     qs.forEach((doc) => {
-  //   //       jobs.push(doc.data());
-  //   //       console.log("DOC", doc.id, " =D ", doc.data());
-  //   //     });
-  //   //   });
-  //   // } catch (u) {
-  //   //   console.log("caught error u", u);
-  //   // }
-  // };
+  useEffect(() => {
+    console.log("this use effect step 2 triggered ", foundOnFirebase);
+    if (foundOnFirebase !== undefined) {
+      if (!foundOnFirebase) {
+        console.log("got to add the job");
+        addFirebaseJob();
+      } else {
+        //TODO update the firestore at all?
+        console.log("we found the job no need to add it");
+      }
+    }
+  }, [addFirebaseJob, foundOnFirebase]);
 
-  const getAddress = () => {
-    let gaddr = "";
-    gaddr =
-      address?.shippingAddress1 +
-      " " +
-      address?.shippingCity +
-      " " +
-      address?.shippingState +
-      " " +
-      address?.shippingZipCode;
-    return gaddr;
-  };
+  useEffect(() => {
+    console.log("useEffect to lookup job and add it maybe");
+    if (orderItem) {
+      lookupFirebaseJob();
+    }
+  }, [orderItem, lookupFirebaseJob]);
 
-  const getSummary = () => {
+  const getAddress = useCallback(() => {
+    if (addressBox) {
+      let gaddr = "";
+      gaddr =
+        address?.shippingAddress1 +
+        " " +
+        address?.shippingCity +
+        " " +
+        address?.shippingState +
+        " " +
+        address?.shippingZipCode;
+      return gaddr;
+    } else {
+      return "";
+    }
+  }, [addressBox, address]);
+
+  const getSummary = useCallback(() => {
     let description = "";
     //orderItem.partDescription
     if (salesID) {
@@ -516,16 +337,42 @@ function Calendar({ orderItem }: props) {
       description += order?.location;
       description += " ";
     }
-    if (routingBox) {
-      description += selectedRouting;
-    }
-    //const { salesID, dateEntered, orderNumber, jobNumber, partNumber, customerDescription, location, addressBox, routingBox } = checkboxState;
+    console.log("set descipriotn to this ", description);
     return description;
-  };
+  }, [
+    customerDescription,
+    dateEntered,
+    jobNumber,
+    location,
+    order?.customerDescription,
+    order?.dateEntered,
+    order?.location,
+    order?.salesID,
+    orderItem.jobNumber,
+    orderItem.orderNumber,
+    orderItem.partNumber,
+    orderNumber,
+    partNumber,
+    salesID,
+  ]);
+
+  useEffect(() => {
+    setDescriptionPrefix(getSummary());
+    setDisplayAddress(getAddress());
+  }, [order, orderItem, getSummary, getAddress]);
 
   const handleCloseDialog = () => {
     setAlertOpen(false);
   };
+
+  const eventAdded = useCallback(
+    (alert: string) => {
+      setAlertText(alert);
+      setAlertOpen(true);
+      lookupFirebaseJob();
+    },
+    [lookupFirebaseJob]
+  );
 
   return (
     <>
@@ -682,116 +529,22 @@ function Calendar({ orderItem }: props) {
             alignItems="center"
             columnGap={1}
           >
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel id="routingsLabel">Routings</InputLabel>
-              {routings && (
-                <Select
-                  value={selectedRouting || ""}
-                  size="medium"
-                  labelId="routingsLabel"
-                  id="selectedRouting"
-                  onChange={handleRoutingChange}
-                  label="Duration"
-                >
-                  {routings.map((routing: Routing, idx) => (
-                    <MenuItem key={idx} value={routing?.workCenter}>
-                      {routing?.workCenter +
-                        " (" +
-                        routing?.description +
-                        "," +
-                        routing?.cycleTime +
-                        ")"}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            </FormControl>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={routingBox}
-                  onChange={handleChecked}
-                  name={"routingBox"}
+            {firebaseDocData &&
+              orderEvents &&
+              descriptionPrefix &&
+              orderEvents.map((fe: FirebaseEvent, idx: number) => (
+                <Event
+                  routings={routings}
+                  firebaseEvent={fe}
+                  index={idx}
+                  calendars={calendarList}
+                  descriptionPrefix={descriptionPrefix}
+                  address={displayAddress}
+                  jobNumber={orderItem.jobNumber}
+                  eventAdded={eventAdded}
                 />
-              }
-              label={""}
-            />
-            <DateTimePicker
-              value={value}
-              onChange={(newValue) => setValue(newValue)}
-            />
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel id="duration-label">Duration</InputLabel>
-              <Select
-                value={duration}
-                size="medium"
-                labelId="duration-label"
-                id="duration-select"
-                onChange={handleDurationChange}
-                label="Duration"
-              >
-                <MenuItem value={"1"}>1</MenuItem>
-                <MenuItem value={"2"}>2</MenuItem>
-                <MenuItem value={"4"}>4</MenuItem>
-                <MenuItem value={"8"}>8</MenuItem>
-              </Select>
-            </FormControl>
-            {calendarList && calendarList.length > 0 && (
-              <FormControl style={{ minWidth: 120 }}>
-                <InputLabel id="calendarLabel">Calendar</InputLabel>
-                <Select
-                  value={selectedCalendar}
-                  size="medium"
-                  labelId="calendarLabel"
-                  id="calendar-select"
-                  onChange={handleCalendarChange}
-                  label="Pick Calendar"
-                >
-                  <MenuItem key="nocal" value="pickacalender">
-                    Select A Calendar
-                  </MenuItem>
-                  {calendarList.map((calendar) => (
-                    <MenuItem key={calendar?.id} value={calendar?.id}>
-                      {calendar.summary}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-            <TextField
-              size="medium"
-              id="outlined-required"
-              label="Description"
-              value={description}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setDescription(event.target.value);
-              }}
-            />
-            <Button
-              disabled={
-                !selectedCalendar || selectedCalendar === "pickacalender"
-              }
-              variant="contained"
-              size="medium"
-              className="saveButton"
-              onClick={handleSchedule}
-            >
-              Save
-            </Button>
+              ))}
           </Grid>
-          {/* {foundOnCalendar && (
-            <Grid>
-              <Button
-                variant="contained"
-                size="medium"
-                onClick={() => {
-                  window.open(firebaseDocData?.htmlLink);
-                }}
-              >
-                View on calendar
-              </Button>
-            </Grid>
-          )} */}
         </Grid>
       </Grid>
       <Dialog open={alertOpen} onClose={handleCloseDialog}>
