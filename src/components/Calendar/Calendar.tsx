@@ -155,20 +155,16 @@ function Calendar({ orderItem }: props) {
   }, [order, ec2token]);
 
   const lookupFirebaseJob = useCallback(() => {
-    console.log("function lookupfirebasejob");
     const singleJobRef = doc(db, "jobs", orderItem.jobNumber);
     const jobSnapshot = getDoc(singleJobRef);
     jobSnapshot.then((a) => {
-      console.log("in the then of jobsnapshot", a);
       if (a.exists()) {
         setFoundOnFirebase(true);
         setFirebaseDocData(a.data());
-        console.log("found the job ", a.data());
         const eventsSnapshot = getDocs(
           collection(db, "jobs", orderItem.jobNumber, "events")
         );
         eventsSnapshot.then((a) => {
-          console.log("HERE IS YOUR EVENTS", a);
           const events: FirebaseEvent[] = [];
           a.forEach((doc) => {
             const docData = doc.data();
@@ -180,7 +176,6 @@ function Calendar({ orderItem }: props) {
               htmlLink: docData.htmlLink,
               updatedDueDate: docData.updatedDueDate,
             });
-            console.log("events ", events);
             setOrderEvents(events);
           });
         });
@@ -210,7 +205,6 @@ function Calendar({ orderItem }: props) {
   }, [orderItem.jobNumber]);
 
   const addEmptyEvent = useCallback(async () => {
-    console.log("try adding an empty event");
     try {
       const job = doc(db, "jobs", orderItem.jobNumber);
       const eventsCollection = collection(job, "events");
@@ -228,7 +222,6 @@ function Calendar({ orderItem }: props) {
         //   routing: "",
         //   updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
       }).then((a) => {
-        console.log("added events with an empty doc");
         setAlertText("No existing calendar items found - ready to schedule");
         setAlertOpen(true);
         lookupFirebaseJob();
@@ -261,7 +254,6 @@ function Calendar({ orderItem }: props) {
   ]);
 
   useEffect(() => {
-    console.log("triggered firebasedocdata useeffect");
     if (firebaseDocData) {
       console.log("there is firebase doc data", firebaseDocData);
     } else {
@@ -270,7 +262,6 @@ function Calendar({ orderItem }: props) {
   }, [firebaseDocData]);
 
   useEffect(() => {
-    console.log("this use effect step 2 triggered ", foundOnFirebase);
     if (foundOnFirebase !== undefined) {
       if (!foundOnFirebase) {
         console.log("got to add the job");
@@ -283,7 +274,6 @@ function Calendar({ orderItem }: props) {
   }, [addFirebaseJob, foundOnFirebase]);
 
   useEffect(() => {
-    console.log("useEffect to lookup job and add it maybe");
     if (orderItem) {
       lookupFirebaseJob();
     }
@@ -337,7 +327,6 @@ function Calendar({ orderItem }: props) {
       description += order?.location;
       description += " ";
     }
-    console.log("set descipriotn to this ", description);
     return description;
   }, [
     customerDescription,

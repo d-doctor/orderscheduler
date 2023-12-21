@@ -95,7 +95,6 @@ function JobsList() {
             // datalist.push(json.Data);
             if (json.Data.length === 200) {
               skipRows += 200;
-              console.log("skipRows", skipRows);
             } else {
               fetchMore = false;
             }

@@ -22,7 +22,7 @@ import {
 import { Routing } from "../../interfaces/VendorModels";
 import { FirebaseEvent } from "../../interfaces/FirebaseModels";
 import { GoogCal, GoogCalEvent } from "../../interfaces/GoogleModels";
-import { setDoc, doc } from "firebase/firestore";
+import { setDoc, doc, updateDoc } from "firebase/firestore";
 import { firebaseAuth, db } from "../../service/firebase";
 import { amber, green, red } from "@mui/material/colors";
 
@@ -57,6 +57,7 @@ function Event({
   const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>();
   const [selectedCalendar, setSelectedCalendar] =
     React.useState<string>("pickacalender");
+  const [oldCalendar, setOldCalendar] = React.useState<string>();
   const [checkboxState, setCheckboxState] = React.useState({
     routingBox: true,
   });
@@ -134,8 +135,6 @@ function Event({
       },
       body: JSON.stringify(event),
     };
-    console.log("post body", JSON.stringify(event));
-    console.log("even", event);
     var htmlLink: string = "";
     var eventId: string = "";
     await fetch(insertEventURL, postOpts)
@@ -150,6 +149,43 @@ function Event({
         console.log("caught error scheduling");
       });
     sendEventToFirebase(eventId, htmlLink);
+  };
+
+  const moveCalendarEvent = async () => {
+    //TODO this isn't getting the right selected calendar perhaps its a race condition with set state tht isn't working
+    const moveEventURL =
+      "https://www.googleapis.com/calendar/v3/calendars/" +
+      firebaseEvent?.calendar +
+      "/events/" +
+      firebaseEvent?.eventId +
+      "/move?destination=" +
+      selectedCalendar;
+    const postOpts = {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        Authorization: "Bearer " + credential?.accessToken,
+      },
+    };
+    await fetch(moveEventURL, postOpts)
+      .then((response) => response.json())
+      .then((json) => {
+        console.log("move result ", json);
+        const eventRef = doc(db, "jobs", jobNumber, "events", firebaseEvent.id);
+        try {
+          console.log("trying to update calendar");
+          updateDoc(eventRef, {
+            calendar: selectedCalendar,
+          }).then(() => {
+            console.log("moved on firebase");
+          });
+        } catch (e) {
+          console.log("failed moving on firebase", e);
+        }
+      })
+      .catch((err) => {
+        console.log("failure moving calendar ", err);
+      });
   };
 
   const updateCalendarEvent = async () => {
@@ -167,13 +203,11 @@ function Event({
       },
       body: JSON.stringify(event),
     };
-    console.log("put body", JSON.stringify(event));
     var htmlLink: string = "";
     var eventId: string = "";
     await fetch(putEventURL, putOpts)
       .then((response) => response.json())
       .then((json) => {
-        console.log("update RESULT: ", json);
         htmlLink = json.htmlLink;
         eventId = json.id;
       })
@@ -195,7 +229,6 @@ function Event({
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
     setSelectedRouting(event.target.value);
-    console.log("selected routing", event.target.value);
     const thisRoute = routings?.filter(
       (r) => r.workCenter === event.target.value
     )[0];
@@ -221,8 +254,17 @@ function Event({
   };
 
   const handleCalendarChange = (event: SelectChangeEvent) => {
-    setSelectedCalendar(event.target.value);
-    console.log("this is the calendar", event.target.value);
+    if (foundOnGoogle) {
+      setOldCalendar(selectedCalendar);
+      setSelectedCalendar(event.target.value);
+      console.log("this is the calendar", event.target.value);
+      console.log("this is the old calendar", oldCalendar);
+      moveCalendarEvent();
+
+      //What happens if we redo the lookup here
+    } else {
+      setSelectedCalendar(event.target.value);
+    }
     //TODO - if the calendar was already set- MOVE it and save (there is an api)
     //TODO save teh firebase event here then also
   };
@@ -288,7 +330,10 @@ function Event({
   }, [firebaseEvent?.updatedDueDate, foundOnGoogle, googleCalendarEvent]);
 
   useEffect(() => {
-    console.log("use effect to set selected calendar");
+    console.log(
+      "use effect to set selected calendar, ",
+      firebaseEvent.calendar
+    );
     setSelectedCalendar(firebaseEvent.calendar);
   }, [firebaseEvent]);
 
