@@ -10,6 +10,9 @@ import {
   Dialog,
   DialogTitle,
   DialogActions,
+  Card,
+  CardContent,
+  Typography,
 } from "@mui/material";
 import { useRecoilValue } from "recoil";
 import { ec2TokenState, credentialState } from "../../atoms/auth";
@@ -52,6 +55,7 @@ function Calendar({ orderItem }: props) {
   const [descriptionPrefix, setDescriptionPrefix] = useState<string>();
   const [displayAddress, setDisplayAddress] = useState<string>();
   const [orderEvents, setOrderEvents] = useState<FirebaseEvent[]>();
+  const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
   const getOrderURLpt2 =
@@ -90,6 +94,12 @@ function Calendar({ orderItem }: props) {
     location,
     addressBox,
   } = checkboxState;
+
+  const handleAddEvent = () => {
+    setButtonDisabled(true);
+    addEmptyEvent(false);
+    setButtonDisabled(false);
+  };
 
   useEffect(() => {
     // setValue(dayjs(orderItem.dueDate).hour(7));
@@ -204,32 +214,32 @@ function Calendar({ orderItem }: props) {
     // }
   }, [orderItem.jobNumber]);
 
-  const addEmptyEvent = useCallback(async () => {
-    try {
-      const job = doc(db, "jobs", orderItem.jobNumber);
-      const eventsCollection = collection(job, "events");
-      await addDoc(eventsCollection, {
-        calendar: "",
-        eventId: "",
-        htmlLink: "",
-        routing: "",
-        updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
-        // })
-        // await setDoc(doc(db, "jobs", orderItem.jobNumber, "events"), {
-        //   calendar: "",
-        //   eventId: "",
-        //   htmlLink: "",
-        //   routing: "",
-        //   updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
-      }).then((a) => {
-        setAlertText("No existing calendar items found - ready to schedule");
-        setAlertOpen(true);
-        lookupFirebaseJob();
-      });
-    } catch (f) {
-      console.log("caught error adding empty event", f);
-    }
-  }, [lookupFirebaseJob, orderItem.dueDate, orderItem.jobNumber]);
+  const addEmptyEvent = useCallback(
+    async (firstEvent: boolean) => {
+      try {
+        const job = doc(db, "jobs", orderItem.jobNumber);
+        const eventsCollection = collection(job, "events");
+        await addDoc(eventsCollection, {
+          calendar: "",
+          eventId: "",
+          htmlLink: "",
+          routing: "",
+          updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
+        }).then((a) => {
+          setAlertText(
+            firstEvent
+              ? "No existing calendar items found - ready to schedule"
+              : "Added Event, Ready to Schedule"
+          );
+          setAlertOpen(true);
+          lookupFirebaseJob();
+        });
+      } catch (f) {
+        console.log("caught error adding empty event", f);
+      }
+    },
+    [lookupFirebaseJob, orderItem.dueDate, orderItem.jobNumber]
+  );
 
   const addFirebaseJob = useCallback(async () => {
     try {
@@ -239,11 +249,12 @@ function Calendar({ orderItem }: props) {
         originalDueDate: orderItem.dueDate,
         udpatedBy: firebaseAuth.currentUser?.email,
       }).then((a) => {
-        addEmptyEvent();
+        addEmptyEvent(true);
       });
     } catch (f) {
       setAlertText("Error sending job to SE data database");
       setAlertOpen(true);
+      setButtonDisabled(false);
       console.log(f);
     }
   }, [
@@ -365,159 +376,182 @@ function Calendar({ orderItem }: props) {
 
   return (
     <>
-      <Grid container spacing="2">
-        <Grid container item xs={4} direction="column">
+      <Grid container spacing={2}>
+        <Grid container item xs={3} direction="column" rowGap={1}>
           <FormGroup>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Sales ID</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={salesID}
-                      onChange={handleChecked}
-                      name={"salesID"}
+            <Card variant="outlined">
+              <CardContent>
+                <Typography sx={{ fontSize: 16 }} color="text.primary">
+                  Select Details for Event Title
+                </Typography>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Sales ID</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={salesID}
+                          onChange={handleChecked}
+                          name={"salesID"}
+                        />
+                      }
+                      label={order?.salesID || "not found"}
                     />
-                  }
-                  label={order?.salesID || "not found"}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Date Entered</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={dateEntered}
-                      onChange={handleChecked}
-                      name={"dateEntered"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Date Entered</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={dateEntered}
+                          onChange={handleChecked}
+                          name={"dateEntered"}
+                        />
+                      }
+                      label={order?.dateEntered.toLocaleString() || "not found"}
                     />
-                  }
-                  label={order?.dateEntered.toLocaleString() || "not found"}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Order Number</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={orderNumber}
-                      onChange={handleChecked}
-                      name={"orderNumber"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Order Number</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={orderNumber}
+                          onChange={handleChecked}
+                          name={"orderNumber"}
+                        />
+                      }
+                      label={order?.orderNumber}
                     />
-                  }
-                  label={order?.orderNumber}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Job Number</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={jobNumber}
-                      onChange={handleChecked}
-                      name={"jobNumber"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Job Number</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={jobNumber}
+                          onChange={handleChecked}
+                          name={"jobNumber"}
+                        />
+                      }
+                      label={orderItem.jobNumber}
                     />
-                  }
-                  label={orderItem.jobNumber}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Part number</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={partNumber}
-                      onChange={handleChecked}
-                      name={"partNumber"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Part number</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={partNumber}
+                          onChange={handleChecked}
+                          name={"partNumber"}
+                        />
+                      }
+                      label={orderItem.partNumber}
                     />
-                  }
-                  label={orderItem.partNumber}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Customer Name</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={customerDescription}
-                      onChange={handleChecked}
-                      name={"customerDescription"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Customer Name</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={customerDescription}
+                          onChange={handleChecked}
+                          name={"customerDescription"}
+                        />
+                      }
+                      label={order?.customerDescription}
                     />
-                  }
-                  label={order?.customerDescription}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Location</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={location}
-                      onChange={handleChecked}
-                      name={"location"}
+                  </Grid>
+                </Grid>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Location</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={location}
+                          onChange={handleChecked}
+                          name={"location"}
+                        />
+                      }
+                      label={order?.location}
                     />
-                  }
-                  label={order?.location}
-                />
-              </Grid>
-            </Grid>
-            <Grid container item direction="row" alignItems="center">
-              <Grid item xs={3}>
-                <FormLabel>Address</FormLabel>
-              </Grid>
-              <Grid item xs={9}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={addressBox}
-                      onChange={handleChecked}
-                      name={"addressBox"}
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography
+                  sx={{ fontSize: 16 }}
+                  color="text.primary"
+                  gutterBottom
+                >
+                  Select Address for Event Location
+                </Typography>
+                <Grid container item direction="row" alignItems="center">
+                  <Grid item xs={3}>
+                    <FormLabel>Address</FormLabel>
+                  </Grid>
+                  <Grid item xs={9}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={addressBox}
+                          onChange={handleChecked}
+                          name={"addressBox"}
+                        />
+                      }
+                      label={
+                        address?.shippingAddress1 ||
+                        "" + address?.shippingCity ||
+                        ""
+                      }
                     />
-                  }
-                  label={
-                    address?.shippingAddress1 ||
-                    "" + address?.shippingCity ||
-                    ""
-                  }
-                />
-              </Grid>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+            <Grid container item direction="row" justifyContent="flex-end">
+              <Button
+                variant="contained"
+                size="medium"
+                className="addEventButton"
+                onClick={handleAddEvent}
+                disabled={buttonDisabled}
+              >
+                Add Event
+              </Button>
             </Grid>
           </FormGroup>
         </Grid>
-        <Grid container xs={7} direction="column" spacing={2}>
-          <Grid
-            container
-            item
-            direction="row"
-            alignItems="center"
-            columnGap={1}
-          >
+        <Grid container item xs={9} direction="column" rowGap={1}>
+          <Grid spacing={0} direction="row" alignItems="center" columnGap={1}>
             {firebaseDocData &&
               orderEvents &&
               descriptionPrefix &&

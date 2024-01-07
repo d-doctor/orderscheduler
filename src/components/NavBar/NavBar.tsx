@@ -18,9 +18,9 @@ function Navbar() {
         <div className="navLinks">
           {user && user.accessToken.length > 0 && (
             <>
-              <Link to="/" className="link">
+              {/* <Link to="/" className="link">
                 Home
-              </Link>
+              </Link> */}
               <Link to="/schedule" className="link">
                 Schedule
               </Link>

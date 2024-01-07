@@ -1,6 +1,7 @@
+/* eslint-disable no-restricted-globals */
 import { initializeApp, setLogLevel } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 // import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
 const firebaseConfig = {
   apiKey: "AIzaSyDdXPJSEX91iTv0Sn5yaTDhOC_-DAhlbY4",
@@ -16,7 +17,11 @@ const firebaseConfig = {
 const firebaseapp = initializeApp(firebaseConfig);
 
 const db = getFirestore(firebaseapp);
-// setLogLevel("debug");
+if (location.hostname === "localhost") {
+  console.log("local mode");
+  connectFirestoreEmulator(db, "127.0.0.1", 8084);
+  setLogLevel("debug");
+}
 
 export default firebaseapp;
 

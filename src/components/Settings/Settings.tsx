@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogTitle,
   DialogActions,
+  Stack,
 } from "@mui/material";
 import {
   RecoilRoot,
@@ -83,8 +84,39 @@ function Settings() {
   return (
     <div className="settings">
       <Box alignItems="center" sx={{ display: "flex", flexWrap: "wrap" }}>
-        <Grid container spacing={4}>
-          <Grid item direction="row" alignItems="center">
+        <Stack direction="row" spacing={2}>
+          <TextField
+            id="clientid"
+            required
+            size="medium"
+            label="Client ID"
+            value={clientID}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setClientID(event.target.value);
+            }}
+            variant="outlined"
+          />
+          <TextField
+            required
+            size="medium"
+            id="secret"
+            label="Secret"
+            value={secret}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setSecret(event.target.value);
+            }}
+          />
+          <Button
+            variant="contained"
+            size="medium"
+            disabled={secret.length === 0 && clientID.length === 0}
+            onClick={handleGetToken}
+          >
+            Authorize With EC
+          </Button>
+        </Stack>
+        {/* <Grid container spacing={4}>
+          <Grid item direction="row" alignItems="center" columnGap={2}>
             <TextField
               id="clientid"
               required
@@ -115,7 +147,7 @@ function Settings() {
               Authorize With EC
             </Button>
           </Grid>
-        </Grid>
+        </Grid> */}
       </Box>
       <Dialog open={alertOpen} onClose={handleClose}>
         <DialogTitle>{alertText}</DialogTitle>

@@ -8,6 +8,8 @@ import WarningIcon from "@mui/icons-material/Warning";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import {
   Button,
+  Card,
+  CardContent,
   Checkbox,
   FormControl,
   FormControlLabel,
@@ -18,6 +20,7 @@ import {
   SelectChangeEvent,
   TextField,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import { Routing } from "../../interfaces/VendorModels";
 import { FirebaseEvent } from "../../interfaces/FirebaseModels";
@@ -53,7 +56,8 @@ function Event({
   const [duration, setDuration] = useState<string>("1");
   const [selectedRouting, setSelectedRouting] = useState<string>("");
   const [dateValue, setDateValue] = useState<Dayjs | null>(dayjs());
-  const [description, setDescription] = React.useState<string>();
+  const [description, setDescription] = React.useState<string>("");
+  const [title, setTitle] = React.useState<string>("");
   const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>();
   const [selectedCalendar, setSelectedCalendar] =
     React.useState<string>("pickacalender");
@@ -81,13 +85,14 @@ function Event({
     const endDate = startDate.add(parseInt(duration), "hour");
     const timeZone = "America/Chicago";
     // const summary = descriptionPrefix || "" + routingBox ? selectedRouting : "";
+    let summary = descriptionPrefix || "";
+    if (routingBox) {
+      summary += " " + selectedRouting;
+    }
+    summary += title ? " " + title : "";
     const where = address;
     const event = {
-      summary: descriptionPrefix
-        ? descriptionPrefix
-        : "" + routingBox
-        ? selectedRouting
-        : "",
+      summary: summary,
       description: description || "",
       location: where || "",
       start: {
@@ -110,8 +115,12 @@ function Event({
         eventId: eventId,
         htmlLink: htmlLink,
         routing: selectedRouting,
+        description: description,
+        title: title,
+        duration: duration,
         updatedDueDate: dateValue?.toISOString() || "",
       }).then(() => {
+        //TODO THIS IS PROBLEMATIC IT CLEARS THE OTHER FORMS
         eventAdded("Successfully Saved");
       });
     } catch (e) {
@@ -153,6 +162,7 @@ function Event({
 
   const moveCalendarEvent = async () => {
     //TODO this isn't getting the right selected calendar perhaps its a race condition with set state tht isn't working
+    console.log("move selected calendar to: ", selectedCalendar);
     const moveEventURL =
       "https://www.googleapis.com/calendar/v3/calendars/" +
       firebaseEvent?.calendar +
@@ -344,133 +354,159 @@ function Event({
   }, [firebaseEvent, lookupGoogleEvent]);
 
   return (
-    <Grid container item direction="row" alignItems="center" columnGap={1}>
-      <FormControl style={{ minWidth: 120 }}>
-        <InputLabel id="routingsLabel">Routings</InputLabel>
-        {routings && (
-          <Select
-            value={selectedRouting || ""}
-            size="medium"
-            labelId="routingsLabel"
-            id="selectedRouting"
-            onChange={handleRoutingChange}
-            label="Duration"
-          >
-            {routings.map((routing: Routing, idx) => (
-              <MenuItem key={idx} value={routing?.workCenter}>
-                {routing?.workCenter +
-                  " (" +
-                  routing?.description +
-                  "," +
-                  routing?.cycleTime +
-                  ")"}
-              </MenuItem>
-            ))}
-          </Select>
-        )}
-      </FormControl>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={routingBox}
-            onChange={handleChecked}
-            name={"routingBox"}
+    <Card variant="outlined">
+      <CardContent>
+        <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
+          Schedule Event
+        </Typography>
+
+        <Grid container item direction="row" alignItems="center" columnGap={1}>
+          <FormControl style={{ minWidth: 120 }}>
+            <InputLabel size="small" id="routingsLabel">
+              Routings
+            </InputLabel>
+            {routings && (
+              <Select
+                value={selectedRouting || ""}
+                size="small"
+                labelId="routingsLabel"
+                id="selectedRouting"
+                onChange={handleRoutingChange}
+                label="Duration"
+              >
+                {routings.map((routing: Routing, idx) => (
+                  <MenuItem key={idx} value={routing?.workCenter}>
+                    {routing?.workCenter +
+                      " (" +
+                      routing?.description +
+                      "," +
+                      routing?.cycleTime +
+                      ")"}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={routingBox}
+                onChange={handleChecked}
+                name={"routingBox"}
+              />
+            }
+            label={"In Title"}
           />
-        }
-        label={""}
-      />
-      <DateTimePicker
-        value={dateValue}
-        onChange={(newValue) => setDateValue(newValue)}
-      />
-      <FormControl style={{ minWidth: 120 }}>
-        <InputLabel id="duration-label">Duration</InputLabel>
-        <Select
-          value={duration}
-          size="medium"
-          labelId="duration-label"
-          id="duration-select"
-          onChange={handleDurationChange}
-          label="Duration"
-        >
-          <MenuItem value={"1"}>1</MenuItem>
-          <MenuItem value={"2"}>2</MenuItem>
-          <MenuItem value={"4"}>4</MenuItem>
-          <MenuItem value={"8"}>8</MenuItem>
-          <MenuItem value={"12"}>12</MenuItem>
-          <MenuItem value={"32"}>2 Days</MenuItem>
-        </Select>
-      </FormControl>
-      {calendars && calendars.length > 0 && (
-        <FormControl style={{ minWidth: 120 }}>
-          <InputLabel id="calendarLabel">Calendar</InputLabel>
-          <Select
-            value={selectedCalendar}
+          <DateTimePicker
+            slotProps={{ textField: { size: "small" } }}
+            value={dateValue}
+            onChange={(newValue) => setDateValue(newValue)}
+          />
+          <FormControl style={{ minWidth: 120 }}>
+            <InputLabel id="duration-label">Duration</InputLabel>
+            <Select
+              value={duration}
+              size="small"
+              labelId="duration-label"
+              id="duration-select"
+              onChange={handleDurationChange}
+              label="Duration"
+            >
+              <MenuItem value={"1"}>1</MenuItem>
+              <MenuItem value={"2"}>2</MenuItem>
+              <MenuItem value={"4"}>4</MenuItem>
+              <MenuItem value={"8"}>8</MenuItem>
+              <MenuItem value={"12"}>12</MenuItem>
+              <MenuItem value={"32"}>2 Days</MenuItem>
+            </Select>
+          </FormControl>
+          {calendars && calendars.length > 0 && (
+            <FormControl style={{ minWidth: 120 }}>
+              <InputLabel id="calendarLabel">Calendar</InputLabel>
+              <Select
+                value={selectedCalendar}
+                size="small"
+                labelId="calendarLabel"
+                id="calendar-select"
+                onChange={handleCalendarChange}
+                label="Pick Calendar"
+              >
+                <MenuItem key="nocal" value="pickacalender">
+                  Select A Calendar
+                </MenuItem>
+                {calendars.map((calendar) => (
+                  <MenuItem key={calendar?.id} value={calendar?.id}>
+                    {calendar.summary}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </Grid>
+        <Grid container item direction="row" alignItems="center" columnGap={1}>
+          <TextField
+            style={{ minWidth: 300 }}
+            size="small"
+            id="outlined-required"
+            label="Additional Title"
+            value={title}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setTitle(event.target.value);
+            }}
+          />
+          <TextField
+            multiline
+            style={{ minWidth: 300 }}
+            size="small"
+            id="outlined-required"
+            label="Description"
+            value={description}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setDescription(event.target.value);
+            }}
+          />
+          {firebaseEvent?.calendar.length > 0 &&
+            firebaseEvent?.eventId.length > 0 &&
+            !foundOnGoogle && (
+              <Tooltip title="Google Calendar Item was moved or deleted">
+                <WarningIcon
+                  fontSize="large"
+                  sx={{ color: red[500] }}
+                ></WarningIcon>
+              </Tooltip>
+            )}
+          {firebaseEvent?.calendar.length === 0 &&
+            firebaseEvent?.eventId.length === 0 && (
+              <Tooltip title="Item not yet scheduled">
+                <WarningAmberIcon
+                  fontSize="large"
+                  sx={{ color: amber[500] }}
+                ></WarningAmberIcon>
+              </Tooltip>
+            )}
+          {firebaseEvent?.calendar.length > 0 &&
+            firebaseEvent?.eventId.length > 0 &&
+            foundOnGoogle && (
+              <Tooltip title="Found on google">
+                <VerifiedIcon
+                  fontSize="large"
+                  sx={{ color: green[500] }}
+                ></VerifiedIcon>
+              </Tooltip>
+            )}
+          <Button
+            disabled={!selectedCalendar || selectedCalendar === "pickacalender"}
+            variant="contained"
             size="medium"
-            labelId="calendarLabel"
-            id="calendar-select"
-            onChange={handleCalendarChange}
-            label="Pick Calendar"
+            className="saveButton"
+            onClick={handleSchedule}
           >
-            <MenuItem key="nocal" value="pickacalender">
-              Select A Calendar
-            </MenuItem>
-            {calendars.map((calendar) => (
-              <MenuItem key={calendar?.id} value={calendar?.id}>
-                {calendar.summary}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
-      <TextField
-        size="medium"
-        id="outlined-required"
-        label="Description"
-        value={description}
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-          setDescription(event.target.value);
-        }}
-      />
-      {firebaseEvent?.calendar.length > 0 &&
-        firebaseEvent?.eventId.length > 0 &&
-        !foundOnGoogle && (
-          <Tooltip title="Google Calendar Item was moved or deleted">
-            <WarningIcon
-              fontSize="large"
-              sx={{ color: red[500] }}
-            ></WarningIcon>
-          </Tooltip>
-        )}
-      {firebaseEvent?.calendar.length === 0 &&
-        firebaseEvent?.eventId.length === 0 && (
-          <Tooltip title="Item not yet scheduled">
-            <WarningAmberIcon
-              fontSize="large"
-              sx={{ color: amber[500] }}
-            ></WarningAmberIcon>
-          </Tooltip>
-        )}
-      {firebaseEvent?.calendar.length > 0 &&
-        firebaseEvent?.eventId.length > 0 &&
-        foundOnGoogle && (
-          <Tooltip title="Found on google">
-            <VerifiedIcon
-              fontSize="large"
-              sx={{ color: green[500] }}
-            ></VerifiedIcon>
-          </Tooltip>
-        )}
-      <Button
-        disabled={!selectedCalendar || selectedCalendar === "pickacalender"}
-        variant="contained"
-        size="medium"
-        className="saveButton"
-        onClick={handleSchedule}
-      >
-        Save
-      </Button>
-    </Grid>
+            Save
+          </Button>
+        </Grid>
+        {/* </Grid> */}
+      </CardContent>
+    </Card>
   );
 }
 

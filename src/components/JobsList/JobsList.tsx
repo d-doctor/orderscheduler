@@ -17,11 +17,16 @@ import {
   MenuItem,
   Paper,
   Alert,
+  Drawer,
+  DialogTitle,
+  IconButton,
 } from "@mui/material";
 import "./JobsList.css";
 import Calendar from "../Calendar/Calendar";
 import { useRecoilValue } from "recoil";
 import { userState, ec2TokenState } from "../../atoms/auth";
+import CancelIcon from "@mui/icons-material/Cancel";
+import { blue } from "@mui/material/colors";
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
@@ -36,6 +41,7 @@ function JobsList() {
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(200);
   const [selectedorder, setSelectedOrder] = React.useState<Data>();
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   // const useFetchOrders = require("../../hooks/useFetchOrders")
 
   const handleChange = (event: SelectChangeEvent) => {
@@ -195,14 +201,31 @@ function JobsList() {
 
   const handleRowClick = (event: React.MouseEvent<unknown>, data: Data) => {
     setSelectedOrder(data);
+    setDrawerOpen(true);
   };
 
   const isSelected = (uniqueID: number) => selectedorder?.uniqueID === uniqueID;
 
+  const toggleDrawer =
+    (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
+      if (
+        event.type === "keydown" &&
+        ((event as React.KeyboardEvent).key === "Tab" ||
+          (event as React.KeyboardEvent).key === "Shift")
+      ) {
+        return;
+      }
+      setDrawerOpen(open);
+    };
+
   // const {data, loading, error} = useFetchOrders(token);
   return (
     <div className="jobslist">
-      <Box alignItems="center" sx={{ display: "flex", flexWrap: "wrap" }}>
+      <Box
+        alignItems="center"
+        sx={{ display: "flex", flexWrap: "wrap" }}
+        onClick={toggleDrawer(false)}
+      >
         <FormControl style={{ minWidth: 120 }}>
           <InputLabel id="report-type-input-label">Job Type</InputLabel>
           <Select
@@ -235,7 +258,7 @@ function JobsList() {
           </Alert>
         )}
       </Box>
-      <TableContainer component={Paper} sx={{ maxHeight: 460 }}>
+      <TableContainer component={Paper} sx={{ maxHeight: 650 }}>
         {data && (
           <Table size="small" stickyHeader aria-label="sticky table">
             <TableHead>
@@ -295,9 +318,25 @@ function JobsList() {
         {jobsList ? <pre>{JSON.stringify(jobsList, null, 2)}</pre> : 'Loading...'}
       </div>         */}
       <div>
-        <Divider textAlign="left">Selected Job</Divider>
-        {selectedorder && <Calendar orderItem={selectedorder} />}
+        {/* <Divider textAlign="left">Selected Job</Divider> */}
+        {/* {selectedorder && <Calendar orderItem={selectedorder} />} */}
       </div>
+      <Drawer
+        open={drawerOpen}
+        anchor={"right"}
+        PaperProps={{ sx: { width: "80%" } }}
+        onClose={toggleDrawer}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", margin: 1 }}>
+          <IconButton
+            onClick={toggleDrawer(false)}
+            style={{ position: "absolute", top: "0", right: "0" }}
+          >
+            <CancelIcon sx={{ color: blue[500] }} />
+          </IconButton>
+        </DialogTitle>
+        {selectedorder && <Calendar orderItem={selectedorder} />}
+      </Drawer>
     </div>
   );
 }
