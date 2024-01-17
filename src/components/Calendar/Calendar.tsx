@@ -24,6 +24,8 @@ import {
   doc,
   DocumentData,
   collection,
+  orderBy,
+  query,
 } from "firebase/firestore";
 import { firebaseAuth, db } from "../../service/firebase";
 import {
@@ -56,6 +58,7 @@ function Calendar({ orderItem }: props) {
   const [displayAddress, setDisplayAddress] = useState<string>();
   const [orderEvents, setOrderEvents] = useState<FirebaseEvent[]>();
   const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
+  const [eventEditMode, setEventEditMode] = useState<boolean[]>([]);
   const getOrderURLpt1 =
     "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
   const getOrderURLpt2 =
@@ -172,11 +175,16 @@ function Calendar({ orderItem }: props) {
         setFoundOnFirebase(true);
         setFirebaseDocData(a.data());
         const eventsSnapshot = getDocs(
-          collection(db, "jobs", orderItem.jobNumber, "events")
+          query(
+            collection(db, "jobs", orderItem.jobNumber, "events"),
+            orderBy("addedDate")
+          )
         );
         eventsSnapshot.then((a) => {
           const events: FirebaseEvent[] = [];
+          const editMode: boolean[] = [];
           a.forEach((doc) => {
+            editMode.push(false);
             const docData = doc.data();
             events.push({
               id: doc.id,
@@ -185,10 +193,15 @@ function Calendar({ orderItem }: props) {
               routing: docData.routing,
               htmlLink: docData.htmlLink,
               updatedDueDate: docData.updatedDueDate,
+              description: docData.description,
+              duration: docData.duration,
+              title: docData.title,
+              addedDate: docData.addedDate,
             });
             setOrderEvents(events);
           });
         });
+        setButtonDisabled(false);
       } else {
         setFirebaseDocData(undefined);
         setFoundOnFirebase(false);
@@ -225,6 +238,10 @@ function Calendar({ orderItem }: props) {
           htmlLink: "",
           routing: "",
           updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
+          description: "",
+          duration: "",
+          title: "",
+          addedDate: dayjs().toISOString(),
         }).then((a) => {
           setAlertText(
             firstEvent
@@ -365,14 +382,35 @@ function Calendar({ orderItem }: props) {
     setAlertOpen(false);
   };
 
-  const eventAdded = useCallback(
-    (alert: string) => {
-      setAlertText(alert);
-      setAlertOpen(true);
-      lookupFirebaseJob();
+  // const eventAdded = useCallback(
+  //   (alert: string) => {
+  //     setAlertText(alert);
+  //     setAlertOpen(true);
+  //     lookupFirebaseJob();
+  //   },
+  //   [lookupFirebaseJob]
+  // );
+
+  const setEditModeByIndex = useCallback(
+    (i: number, inEdit: boolean) => {
+      console.log("setting edit mode for ", i);
+      setEventEditMode([...eventEditMode]);
+      const newEditModes = eventEditMode;
+      newEditModes[i] = inEdit;
+      setEventEditMode(newEditModes);
     },
-    [lookupFirebaseJob]
+    [setEventEditMode, eventEditMode]
   );
+
+  const isEditMode = useCallback(() => {
+    console.log("is edit mode", eventEditMode?.filter((a) => !!a).length > 0);
+    if (eventEditMode === undefined) {
+      console.log("i lied edit mode is false");
+      return false;
+    } else {
+      return eventEditMode.filter((a) => !!a).length > 0;
+    }
+  }, [eventEditMode]);
 
   return (
     <>
@@ -543,7 +581,7 @@ function Calendar({ orderItem }: props) {
                 size="medium"
                 className="addEventButton"
                 onClick={handleAddEvent}
-                disabled={buttonDisabled}
+                disabled={buttonDisabled || isEditMode()}
               >
                 Add Event
               </Button>
@@ -564,7 +602,8 @@ function Calendar({ orderItem }: props) {
                   descriptionPrefix={descriptionPrefix}
                   address={displayAddress}
                   jobNumber={orderItem.jobNumber}
-                  eventAdded={eventAdded}
+                  // eventAdded={eventAdded}
+                  setEventEditMode={setEditModeByIndex}
                 />
               ))}
           </Grid>

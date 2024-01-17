@@ -6,15 +6,23 @@ import { ec2TokenState, credentialState } from "../../atoms/auth";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import WarningIcon from "@mui/icons-material/Warning";
 import VerifiedIcon from "@mui/icons-material/Verified";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import DoubleArrowIcon from "@mui/icons-material/DoubleArrow";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import {
   Button,
   Card,
   CardContent,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogTitle,
+  Divider,
   FormControl,
   FormControlLabel,
   Grid,
   InputLabel,
+  Menu,
   MenuItem,
   Select,
   SelectChangeEvent,
@@ -27,7 +35,8 @@ import { FirebaseEvent } from "../../interfaces/FirebaseModels";
 import { GoogCal, GoogCalEvent } from "../../interfaces/GoogleModels";
 import { setDoc, doc, updateDoc } from "firebase/firestore";
 import { firebaseAuth, db } from "../../service/firebase";
-import { amber, green, red } from "@mui/material/colors";
+import { amber, blue, green, red } from "@mui/material/colors";
+import { lookup } from "dns";
 
 interface Props {
   routings?: Routing[];
@@ -37,7 +46,8 @@ interface Props {
   descriptionPrefix?: string;
   address?: string;
   jobNumber: string;
-  eventAdded: (alert: string) => void;
+  // eventAdded: (alert: string) => void;
+  setEventEditMode: (index: number, editModeEnabled: boolean) => void;
 }
 
 function Event({
@@ -48,16 +58,30 @@ function Event({
   descriptionPrefix,
   address,
   jobNumber,
-  eventAdded,
+  // eventAdded,
+  setEventEditMode,
 }: Props) {
   console.log("event componnent");
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
-  const [duration, setDuration] = useState<string>("1");
-  const [selectedRouting, setSelectedRouting] = useState<string>("");
+  const [duration, setDuration] = useState<string>(
+    firebaseEvent?.duration
+      ? firebaseEvent.duration.length > 0
+        ? firebaseEvent.duration
+        : "1"
+      : "1"
+  );
+  const [selectedRouting, setSelectedRouting] = useState<string>(
+    firebaseEvent?.routing || ""
+  );
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertText, setAlertText] = useState<string>("");
   const [dateValue, setDateValue] = useState<Dayjs | null>(dayjs());
-  const [description, setDescription] = React.useState<string>("");
-  const [title, setTitle] = React.useState<string>("");
+  const [eventId, setEventId] = useState<string>(firebaseEvent?.eventId);
+  const [description, setDescription] = React.useState<string>(
+    firebaseEvent?.description || ""
+  );
+  const [title, setTitle] = React.useState<string>(firebaseEvent?.title || "");
   const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>();
   const [selectedCalendar, setSelectedCalendar] =
     React.useState<string>("pickacalender");
@@ -109,7 +133,7 @@ function Event({
 
   const sendEventToFirebase = async (eventId: string, htmlLink: string) => {
     try {
-      console.log("trying to add with date: ", dateValue?.toISOString());
+      console.log("trying to add with event ID:  ", eventId?.toString());
       await setDoc(doc(db, "jobs", jobNumber, "events", firebaseEvent.id), {
         calendar: selectedCalendar,
         eventId: eventId,
@@ -119,13 +143,15 @@ function Event({
         title: title,
         duration: duration,
         updatedDueDate: dateValue?.toISOString() || "",
+        addedDate: firebaseEvent.addedDate,
       }).then(() => {
-        //TODO THIS IS PROBLEMATIC IT CLEARS THE OTHER FORMS
-        eventAdded("Successfully Saved");
+        setAlertText("Successfully Saved");
+        setAlertOpen(true);
       });
     } catch (e) {
       console.log("failed sending to firebase", e);
-      eventAdded("Failed to save to database");
+      setAlertText("Failed to save to database");
+      setAlertOpen(true);
     }
   };
 
@@ -152,9 +178,12 @@ function Event({
         console.log("INSERT RESULT: ", json);
         htmlLink = json.htmlLink;
         eventId = json.id;
+        setEventId(eventId);
       })
       .catch((e) => {
-        eventAdded("Failed to save to google calendar");
+        // eventAdded("Failed to save to google calendar");
+        setAlertText("Failed to save to google calendar");
+        setAlertOpen(true);
         console.log("caught error scheduling");
       });
     sendEventToFirebase(eventId, htmlLink);
@@ -163,11 +192,15 @@ function Event({
   const moveCalendarEvent = async () => {
     //TODO this isn't getting the right selected calendar perhaps its a race condition with set state tht isn't working
     console.log("move selected calendar to: ", selectedCalendar);
+    console.log("old calendar: ", firebaseEvent?.calendar);
+
+    //TODO - FIX BUG - when you save from a dead firebase event
+
     const moveEventURL =
       "https://www.googleapis.com/calendar/v3/calendars/" +
       firebaseEvent?.calendar +
       "/events/" +
-      firebaseEvent?.eventId +
+      eventId +
       "/move?destination=" +
       selectedCalendar;
     const postOpts = {
@@ -203,7 +236,7 @@ function Event({
       "https://www.googleapis.com/calendar/v3/calendars/" +
       firebaseEvent?.calendar +
       "/events/" +
-      firebaseEvent?.eventId;
+      eventId;
     const event = buildEvent();
     const putOpts = {
       method: "PUT",
@@ -214,27 +247,33 @@ function Event({
       body: JSON.stringify(event),
     };
     var htmlLink: string = "";
-    var eventId: string = "";
+    var eId: string = "";
     await fetch(putEventURL, putOpts)
       .then((response) => response.json())
       .then((json) => {
         htmlLink = json.htmlLink;
-        eventId = json.id;
+        eId = json.id;
+        setEventId(eId);
       })
       .catch((e) => {
         console.log("caught error scheduling");
       });
-    sendEventToFirebase(eventId, htmlLink);
+    sendEventToFirebase(eId, htmlLink);
   };
 
   const handleSchedule = async () => {
     if (foundOnGoogle) {
-      console.log("update goog cal");
+      if (oldCalendar && oldCalendar !== selectedCalendar) {
+        await moveCalendarEvent();
+      }
+      //TODO only update it if there wasn't a failure from the move above
+      console.log("now update it, ", eventId);
       updateCalendarEvent();
     } else {
       console.log("add new to goog cal");
       insertCalendarEvent();
     }
+    setFoundOnGoogle(true);
   };
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
@@ -260,6 +299,7 @@ function Event({
   };
 
   const handleDurationChange = (event: SelectChangeEvent) => {
+    setEventEditMode(index, true);
     setDuration(event.target.value);
   };
 
@@ -269,13 +309,11 @@ function Event({
       setSelectedCalendar(event.target.value);
       console.log("this is the calendar", event.target.value);
       console.log("this is the old calendar", oldCalendar);
-      moveCalendarEvent();
-
+      // moveCalendarEvent();
       //What happens if we redo the lookup here
     } else {
       setSelectedCalendar(event.target.value);
     }
-    //TODO - if the calendar was already set- MOVE it and save (there is an api)
     //TODO save teh firebase event here then also
   };
 
@@ -285,15 +323,15 @@ function Event({
       credential?.accessToken &&
       firebaseEvent &&
       firebaseEvent.calendar &&
-      firebaseEvent.eventId &&
+      eventId &&
       firebaseEvent.calendar.length > 0 &&
-      firebaseEvent.eventId.length > 0
+      eventId.length > 0
     ) {
       let getCalendarURL =
         "https://www.googleapis.com/calendar/v3/calendars/" +
         firebaseEvent.calendar +
         "/events/" +
-        firebaseEvent.eventId;
+        eventId;
       fetch(getCalendarURL, {
         headers: {
           accept: "application/json",
@@ -303,7 +341,7 @@ function Event({
         .then((response) =>
           response.json().then((json) => {
             console.log("was the calendar json found", json);
-            if (json.error) {
+            if (json.error || json.status === "cancelled") {
               setFoundOnGoogle(false);
             } else {
               setFoundOnGoogle(true);
@@ -318,7 +356,7 @@ function Event({
     } else {
       setFoundOnGoogle(false);
     }
-  }, [firebaseEvent, credential?.accessToken]);
+  }, [firebaseEvent, credential?.accessToken, eventId]);
 
   useEffect(() => {
     console.log("use effect because foundongoogle", foundOnGoogle);
@@ -353,130 +391,210 @@ function Event({
     lookupGoogleEvent();
   }, [firebaseEvent, lookupGoogleEvent]);
 
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
-          Schedule Event
-        </Typography>
+  const handleRefresh = async () => {
+    if (foundOnGoogle) {
+      lookupGoogleEvent();
+    }
+  };
 
-        <Grid container item direction="row" alignItems="center" columnGap={1}>
-          <FormControl style={{ minWidth: 120 }}>
-            <InputLabel size="small" id="routingsLabel">
-              Routings
-            </InputLabel>
-            {routings && (
+  const MenuButton = () => {
+    const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+    const open = Boolean(anchorEl);
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+      setAnchorEl(event.currentTarget);
+    };
+    const handleClose = () => {
+      setAnchorEl(null);
+    };
+    return (
+      <div>
+        <Button
+          id="menu-button"
+          onClick={handleMenuOpen}
+          variant="contained"
+          size="medium"
+        >
+          Options
+        </Button>
+        <Menu
+          elevation={0}
+          id="customized-menu"
+          MenuListProps={{
+            "aria-labelledby": "menu-button",
+          }}
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+        >
+          <MenuItem onClick={handleClose} disableRipple>
+            <DoubleArrowIcon />
+            Set User Date 1
+          </MenuItem>
+          <MenuItem onClick={handleClose} disableRipple>
+            <DoubleArrowIcon />
+            Set User Date 2
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem onClick={handleClose} disableRipple>
+            <DeleteForeverIcon />
+            Delete
+          </MenuItem>
+        </Menu>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <Card variant="outlined">
+        <CardContent>
+          <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
+            Schedule Event
+          </Typography>
+
+          <Grid
+            container
+            item
+            direction="row"
+            alignItems="center"
+            columnGap={1}
+          >
+            <FormControl style={{ minWidth: 120 }}>
+              <InputLabel size="small" id="routingsLabel">
+                Routings
+              </InputLabel>
+              {routings && (
+                <Select
+                  value={selectedRouting || ""}
+                  size="small"
+                  labelId="routingsLabel"
+                  id="selectedRouting"
+                  onChange={handleRoutingChange}
+                  label="Duration"
+                >
+                  {routings.map((routing: Routing, idx) => (
+                    <MenuItem key={idx} value={routing?.workCenter}>
+                      {routing?.workCenter +
+                        " (" +
+                        routing?.description +
+                        "," +
+                        routing?.cycleTime +
+                        ")"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={routingBox}
+                  onChange={handleChecked}
+                  name={"routingBox"}
+                />
+              }
+              label={"In Title"}
+            />
+            <DateTimePicker
+              slotProps={{ textField: { size: "small" } }}
+              value={dateValue}
+              onChange={(newValue) => setDateValue(newValue)}
+            />
+            <FormControl style={{ minWidth: 120 }}>
+              <InputLabel id="duration-label">Duration</InputLabel>
               <Select
-                value={selectedRouting || ""}
+                value={duration}
                 size="small"
-                labelId="routingsLabel"
-                id="selectedRouting"
-                onChange={handleRoutingChange}
+                labelId="duration-label"
+                id="duration-select"
+                onChange={handleDurationChange}
                 label="Duration"
               >
-                {routings.map((routing: Routing, idx) => (
-                  <MenuItem key={idx} value={routing?.workCenter}>
-                    {routing?.workCenter +
-                      " (" +
-                      routing?.description +
-                      "," +
-                      routing?.cycleTime +
-                      ")"}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
-          </FormControl>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={routingBox}
-                onChange={handleChecked}
-                name={"routingBox"}
-              />
-            }
-            label={"In Title"}
-          />
-          <DateTimePicker
-            slotProps={{ textField: { size: "small" } }}
-            value={dateValue}
-            onChange={(newValue) => setDateValue(newValue)}
-          />
-          <FormControl style={{ minWidth: 120 }}>
-            <InputLabel id="duration-label">Duration</InputLabel>
-            <Select
-              value={duration}
-              size="small"
-              labelId="duration-label"
-              id="duration-select"
-              onChange={handleDurationChange}
-              label="Duration"
-            >
-              <MenuItem value={"1"}>1</MenuItem>
-              <MenuItem value={"2"}>2</MenuItem>
-              <MenuItem value={"4"}>4</MenuItem>
-              <MenuItem value={"8"}>8</MenuItem>
-              <MenuItem value={"12"}>12</MenuItem>
-              <MenuItem value={"32"}>2 Days</MenuItem>
-            </Select>
-          </FormControl>
-          {calendars && calendars.length > 0 && (
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel id="calendarLabel">Calendar</InputLabel>
-              <Select
-                value={selectedCalendar}
-                size="small"
-                labelId="calendarLabel"
-                id="calendar-select"
-                onChange={handleCalendarChange}
-                label="Pick Calendar"
-              >
-                <MenuItem key="nocal" value="pickacalender">
-                  Select A Calendar
-                </MenuItem>
-                {calendars.map((calendar) => (
-                  <MenuItem key={calendar?.id} value={calendar?.id}>
-                    {calendar.summary}
-                  </MenuItem>
-                ))}
+                <MenuItem value={"1"}>1</MenuItem>
+                <MenuItem value={"2"}>2</MenuItem>
+                <MenuItem value={"4"}>4</MenuItem>
+                <MenuItem value={"8"}>8</MenuItem>
+                <MenuItem value={"12"}>12</MenuItem>
+                <MenuItem value={"32"}>2 Days</MenuItem>
               </Select>
             </FormControl>
-          )}
-        </Grid>
-        <Grid container item direction="row" alignItems="center" columnGap={1}>
-          <TextField
-            style={{ minWidth: 300 }}
-            size="small"
-            id="outlined-required"
-            label="Additional Title"
-            value={title}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setTitle(event.target.value);
-            }}
-          />
-          <TextField
-            multiline
-            style={{ minWidth: 300 }}
-            size="small"
-            id="outlined-required"
-            label="Description"
-            value={description}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setDescription(event.target.value);
-            }}
-          />
-          {firebaseEvent?.calendar.length > 0 &&
-            firebaseEvent?.eventId.length > 0 &&
-            !foundOnGoogle && (
-              <Tooltip title="Google Calendar Item was moved or deleted">
-                <WarningIcon
-                  fontSize="large"
-                  sx={{ color: red[500] }}
-                ></WarningIcon>
-              </Tooltip>
+            {calendars && calendars.length > 0 && (
+              <FormControl style={{ minWidth: 120 }}>
+                <InputLabel id="calendarLabel">Calendar</InputLabel>
+                <Select
+                  value={selectedCalendar}
+                  size="small"
+                  labelId="calendarLabel"
+                  id="calendar-select"
+                  onChange={handleCalendarChange}
+                  label="Pick Calendar"
+                >
+                  <MenuItem key="nocal" value="pickacalender">
+                    Select A Calendar
+                  </MenuItem>
+                  {calendars.map((calendar) => (
+                    <MenuItem key={calendar?.id} value={calendar?.id}>
+                      {calendar.summary}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             )}
-          {firebaseEvent?.calendar.length === 0 &&
-            firebaseEvent?.eventId.length === 0 && (
+            <Button
+              disabled={
+                !selectedCalendar || selectedCalendar === "pickacalender"
+              }
+              variant="outlined"
+              size="small"
+              className="handleRefresh"
+              onClick={handleRefresh}
+            >
+              <Tooltip title="Refresh date from google calendar">
+                <RefreshIcon fontSize="large" sx={{ color: blue[500] }} />
+              </Tooltip>
+            </Button>
+            <MenuButton></MenuButton>
+          </Grid>
+          <Grid
+            container
+            item
+            direction="row"
+            alignItems="center"
+            columnGap={1}
+          >
+            <TextField
+              style={{ minWidth: 300 }}
+              size="small"
+              id="outlined-required"
+              label="Additional Title"
+              value={title}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setTitle(event.target.value);
+              }}
+            />
+            <TextField
+              multiline
+              style={{ minWidth: 300 }}
+              size="small"
+              id="outlined-required"
+              label="Description"
+              value={description}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setDescription(event.target.value);
+              }}
+            />
+            {firebaseEvent?.calendar.length > 0 &&
+              eventId &&
+              eventId?.length > 0 &&
+              !foundOnGoogle && (
+                <Tooltip title="Google Calendar Item was moved or deleted">
+                  <WarningIcon
+                    fontSize="large"
+                    sx={{ color: red[500] }}
+                  ></WarningIcon>
+                </Tooltip>
+              )}
+            {firebaseEvent?.calendar.length === 0 && eventId?.length === 0 && (
               <Tooltip title="Item not yet scheduled">
                 <WarningAmberIcon
                   fontSize="large"
@@ -484,29 +602,40 @@ function Event({
                 ></WarningAmberIcon>
               </Tooltip>
             )}
-          {firebaseEvent?.calendar.length > 0 &&
-            firebaseEvent?.eventId.length > 0 &&
-            foundOnGoogle && (
-              <Tooltip title="Found on google">
-                <VerifiedIcon
-                  fontSize="large"
-                  sx={{ color: green[500] }}
-                ></VerifiedIcon>
-              </Tooltip>
-            )}
-          <Button
-            disabled={!selectedCalendar || selectedCalendar === "pickacalender"}
-            variant="contained"
-            size="medium"
-            className="saveButton"
-            onClick={handleSchedule}
-          >
-            Save
+            {firebaseEvent?.calendar.length > 0 &&
+              eventId?.length > 0 &&
+              foundOnGoogle && (
+                <Tooltip title="Found on google">
+                  <VerifiedIcon
+                    fontSize="large"
+                    sx={{ color: green[500] }}
+                  ></VerifiedIcon>
+                </Tooltip>
+              )}
+            <Button
+              disabled={
+                !selectedCalendar || selectedCalendar === "pickacalender"
+              }
+              variant="contained"
+              size="medium"
+              className="saveButton"
+              onClick={handleSchedule}
+            >
+              Save
+            </Button>
+          </Grid>
+          {/* </Grid> */}
+        </CardContent>
+      </Card>
+      <Dialog open={alertOpen} onClose={() => setAlertOpen(false)}>
+        <DialogTitle>{alertText}</DialogTitle>
+        <DialogActions>
+          <Button onClick={() => setAlertOpen(false)} autoFocus>
+            Close
           </Button>
-        </Grid>
-        {/* </Grid> */}
-      </CardContent>
-    </Card>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 
