@@ -281,13 +281,13 @@ function Calendar({ orderItem }: props) {
     orderItem.orderNumber,
   ]);
 
-  useEffect(() => {
-    if (firebaseDocData) {
-      console.log("there is firebase doc data", firebaseDocData);
-    } else {
-      console.log("there is no doc data");
-    }
-  }, [firebaseDocData]);
+  // useEffect(() => {
+  //   if (firebaseDocData) {
+  //     console.log("there is firebase doc data", firebaseDocData);
+  //   } else {
+  //     console.log("there is no doc data");
+  //   }
+  // }, [firebaseDocData]);
 
   useEffect(() => {
     if (foundOnFirebase !== undefined) {

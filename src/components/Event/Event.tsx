@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import dayjs, { Dayjs } from "dayjs";
 import { useRecoilValue } from "recoil";
-import { ec2TokenState, credentialState } from "../../atoms/auth";
+import { credentialState } from "../../atoms/auth";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import WarningIcon from "@mui/icons-material/Warning";
 import VerifiedIcon from "@mui/icons-material/Verified";
@@ -33,10 +33,9 @@ import {
 import { Routing } from "../../interfaces/VendorModels";
 import { FirebaseEvent } from "../../interfaces/FirebaseModels";
 import { GoogCal, GoogCalEvent } from "../../interfaces/GoogleModels";
-import { setDoc, doc, updateDoc } from "firebase/firestore";
-import { firebaseAuth, db } from "../../service/firebase";
+import { setDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { amber, blue, green, red } from "@mui/material/colors";
-import { lookup } from "dns";
+import { db } from "../../service/firebase";
 
 interface Props {
   routings?: Routing[];
@@ -61,8 +60,6 @@ function Event({
   // eventAdded,
   setEventEditMode,
 }: Props) {
-  console.log("event componnent");
-  const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
   const [duration, setDuration] = useState<string>(
     firebaseEvent?.duration
@@ -89,6 +86,7 @@ function Event({
   const [checkboxState, setCheckboxState] = React.useState({
     routingBox: true,
   });
+  const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
 
@@ -234,7 +232,7 @@ function Event({
   const updateCalendarEvent = async () => {
     const putEventURL =
       "https://www.googleapis.com/calendar/v3/calendars/" +
-      firebaseEvent?.calendar +
+      selectedCalendar +
       "/events/" +
       eventId;
     const event = buildEvent();
@@ -261,6 +259,40 @@ function Event({
     sendEventToFirebase(eId, htmlLink);
   };
 
+  const deleteCalendarEvent = useCallback(async () => {
+    const calToDelete = oldCalendar ? oldCalendar : selectedCalendar;
+    const deleteEventURL =
+      "https://www.googleapis.com/calendar/v3/calendars/" +
+      calToDelete +
+      "/events/" +
+      eventId;
+    const deleteOpts = {
+      method: "DELETE",
+      headers: {
+        accept: "application/json",
+        Authorization: "Bearer " + credential?.accessToken,
+      },
+    };
+    await fetch(deleteEventURL, deleteOpts)
+      .then((resp) => {
+        console.log("deleted calendar: ", resp);
+      })
+      .catch((e) => {
+        console.log("error deleting from calendar ", e);
+      });
+  }, [credential?.accessToken, eventId, oldCalendar, selectedCalendar]);
+
+  const deleteFirebaseEvent = useCallback(async () => {
+    try {
+      await deleteDoc(doc(db, "jobs", jobNumber, "events", firebaseEvent.id));
+    } catch (e) {
+      console.log("error deleting firebase ", e);
+    }
+    setAlertText("Event deleted");
+    setAlertOpen(true);
+    setDeleted(true);
+  }, [firebaseEvent.id, jobNumber]);
+
   const handleSchedule = async () => {
     if (foundOnGoogle) {
       if (oldCalendar && oldCalendar !== selectedCalendar) {
@@ -275,6 +307,13 @@ function Event({
     }
     setFoundOnGoogle(true);
   };
+
+  const handleDelete = useCallback(async () => {
+    if (foundOnGoogle) {
+      await deleteCalendarEvent();
+    }
+    deleteFirebaseEvent();
+  }, [deleteCalendarEvent, deleteFirebaseEvent, foundOnGoogle]);
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
     setSelectedRouting(event.target.value);
@@ -435,7 +474,13 @@ function Event({
             Set User Date 2
           </MenuItem>
           <Divider sx={{ my: 0.5 }} />
-          <MenuItem onClick={handleClose} disableRipple>
+          <MenuItem
+            onClick={() => {
+              handleDelete();
+              handleClose();
+            }}
+            disableRipple
+          >
             <DeleteForeverIcon />
             Delete
           </MenuItem>
@@ -447,185 +492,194 @@ function Event({
   return (
     <>
       <Card variant="outlined">
-        <CardContent>
-          <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
-            Schedule Event
-          </Typography>
-
-          <Grid
-            container
-            item
-            direction="row"
-            alignItems="center"
-            columnGap={1}
-          >
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel size="small" id="routingsLabel">
-                Routings
-              </InputLabel>
-              {routings && (
+        {deleted && (
+          <CardContent>
+            <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
+              Deleted Event
+            </Typography>
+          </CardContent>
+        )}
+        {!deleted && (
+          <CardContent>
+            <Typography sx={{ fontSize: 16 }} color="text.primary" gutterBottom>
+              Schedule Event
+            </Typography>
+            <Grid
+              container
+              item
+              direction="row"
+              alignItems="center"
+              columnGap={1}
+            >
+              <FormControl style={{ minWidth: 120 }}>
+                <InputLabel size="small" id="routingsLabel">
+                  Routings
+                </InputLabel>
+                {routings && (
+                  <Select
+                    value={selectedRouting || ""}
+                    size="small"
+                    labelId="routingsLabel"
+                    id="selectedRouting"
+                    onChange={handleRoutingChange}
+                    label="Duration"
+                  >
+                    {routings.map((routing: Routing, idx) => (
+                      <MenuItem key={idx} value={routing?.workCenter}>
+                        {routing?.workCenter +
+                          " (" +
+                          routing?.description +
+                          "," +
+                          routing?.cycleTime +
+                          ")"}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              </FormControl>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={routingBox}
+                    onChange={handleChecked}
+                    name={"routingBox"}
+                  />
+                }
+                label={"In Title"}
+              />
+              <DateTimePicker
+                slotProps={{ textField: { size: "small" } }}
+                value={dateValue}
+                onChange={(newValue) => setDateValue(newValue)}
+              />
+              <FormControl style={{ minWidth: 120 }}>
+                <InputLabel id="duration-label">Duration</InputLabel>
                 <Select
-                  value={selectedRouting || ""}
+                  value={duration}
                   size="small"
-                  labelId="routingsLabel"
-                  id="selectedRouting"
-                  onChange={handleRoutingChange}
+                  labelId="duration-label"
+                  id="duration-select"
+                  onChange={handleDurationChange}
                   label="Duration"
                 >
-                  {routings.map((routing: Routing, idx) => (
-                    <MenuItem key={idx} value={routing?.workCenter}>
-                      {routing?.workCenter +
-                        " (" +
-                        routing?.description +
-                        "," +
-                        routing?.cycleTime +
-                        ")"}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            </FormControl>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={routingBox}
-                  onChange={handleChecked}
-                  name={"routingBox"}
-                />
-              }
-              label={"In Title"}
-            />
-            <DateTimePicker
-              slotProps={{ textField: { size: "small" } }}
-              value={dateValue}
-              onChange={(newValue) => setDateValue(newValue)}
-            />
-            <FormControl style={{ minWidth: 120 }}>
-              <InputLabel id="duration-label">Duration</InputLabel>
-              <Select
-                value={duration}
-                size="small"
-                labelId="duration-label"
-                id="duration-select"
-                onChange={handleDurationChange}
-                label="Duration"
-              >
-                <MenuItem value={"1"}>1</MenuItem>
-                <MenuItem value={"2"}>2</MenuItem>
-                <MenuItem value={"4"}>4</MenuItem>
-                <MenuItem value={"8"}>8</MenuItem>
-                <MenuItem value={"12"}>12</MenuItem>
-                <MenuItem value={"32"}>2 Days</MenuItem>
-              </Select>
-            </FormControl>
-            {calendars && calendars.length > 0 && (
-              <FormControl style={{ minWidth: 120 }}>
-                <InputLabel id="calendarLabel">Calendar</InputLabel>
-                <Select
-                  value={selectedCalendar}
-                  size="small"
-                  labelId="calendarLabel"
-                  id="calendar-select"
-                  onChange={handleCalendarChange}
-                  label="Pick Calendar"
-                >
-                  <MenuItem key="nocal" value="pickacalender">
-                    Select A Calendar
-                  </MenuItem>
-                  {calendars.map((calendar) => (
-                    <MenuItem key={calendar?.id} value={calendar?.id}>
-                      {calendar.summary}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value={"1"}>1</MenuItem>
+                  <MenuItem value={"2"}>2</MenuItem>
+                  <MenuItem value={"4"}>4</MenuItem>
+                  <MenuItem value={"8"}>8</MenuItem>
+                  <MenuItem value={"12"}>12</MenuItem>
+                  <MenuItem value={"32"}>2 Days</MenuItem>
                 </Select>
               </FormControl>
-            )}
-            <Button
-              disabled={
-                !selectedCalendar || selectedCalendar === "pickacalender"
-              }
-              variant="outlined"
-              size="small"
-              className="handleRefresh"
-              onClick={handleRefresh}
-            >
-              <Tooltip title="Refresh date from google calendar">
-                <RefreshIcon fontSize="large" sx={{ color: blue[500] }} />
-              </Tooltip>
-            </Button>
-            <MenuButton></MenuButton>
-          </Grid>
-          <Grid
-            container
-            item
-            direction="row"
-            alignItems="center"
-            columnGap={1}
-          >
-            <TextField
-              style={{ minWidth: 300 }}
-              size="small"
-              id="outlined-required"
-              label="Additional Title"
-              value={title}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setTitle(event.target.value);
-              }}
-            />
-            <TextField
-              multiline
-              style={{ minWidth: 300 }}
-              size="small"
-              id="outlined-required"
-              label="Description"
-              value={description}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                setDescription(event.target.value);
-              }}
-            />
-            {firebaseEvent?.calendar.length > 0 &&
-              eventId &&
-              eventId?.length > 0 &&
-              !foundOnGoogle && (
-                <Tooltip title="Google Calendar Item was moved or deleted">
-                  <WarningIcon
-                    fontSize="large"
-                    sx={{ color: red[500] }}
-                  ></WarningIcon>
-                </Tooltip>
+              {calendars && calendars.length > 0 && (
+                <FormControl style={{ minWidth: 120 }}>
+                  <InputLabel id="calendarLabel">Calendar</InputLabel>
+                  <Select
+                    value={selectedCalendar}
+                    size="small"
+                    labelId="calendarLabel"
+                    id="calendar-select"
+                    onChange={handleCalendarChange}
+                    label="Pick Calendar"
+                  >
+                    <MenuItem key="nocal" value="pickacalender">
+                      Select A Calendar
+                    </MenuItem>
+                    {calendars.map((calendar) => (
+                      <MenuItem key={calendar?.id} value={calendar?.id}>
+                        {calendar.summary}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               )}
-            {firebaseEvent?.calendar.length === 0 && eventId?.length === 0 && (
-              <Tooltip title="Item not yet scheduled">
-                <WarningAmberIcon
-                  fontSize="large"
-                  sx={{ color: amber[500] }}
-                ></WarningAmberIcon>
-              </Tooltip>
-            )}
-            {firebaseEvent?.calendar.length > 0 &&
-              eventId?.length > 0 &&
-              foundOnGoogle && (
-                <Tooltip title="Found on google">
-                  <VerifiedIcon
-                    fontSize="large"
-                    sx={{ color: green[500] }}
-                  ></VerifiedIcon>
+              <Button
+                disabled={
+                  !selectedCalendar || selectedCalendar === "pickacalender"
+                }
+                variant="outlined"
+                size="small"
+                className="handleRefresh"
+                onClick={handleRefresh}
+              >
+                <Tooltip title="Refresh date from google calendar">
+                  <RefreshIcon fontSize="large" sx={{ color: blue[500] }} />
                 </Tooltip>
-              )}
-            <Button
-              disabled={
-                !selectedCalendar || selectedCalendar === "pickacalender"
-              }
-              variant="contained"
-              size="medium"
-              className="saveButton"
-              onClick={handleSchedule}
+              </Button>
+              <MenuButton></MenuButton>
+            </Grid>
+            <Grid
+              container
+              item
+              direction="row"
+              alignItems="center"
+              columnGap={1}
             >
-              Save
-            </Button>
-          </Grid>
-          {/* </Grid> */}
-        </CardContent>
+              <TextField
+                style={{ minWidth: 300 }}
+                size="small"
+                id="outlined-required"
+                label="Additional Title"
+                value={title}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                  setTitle(event.target.value);
+                }}
+              />
+              <TextField
+                multiline
+                style={{ minWidth: 300 }}
+                size="small"
+                id="outlined-required"
+                label="Description"
+                value={description}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                  setDescription(event.target.value);
+                }}
+              />
+              {firebaseEvent?.calendar.length > 0 &&
+                eventId &&
+                eventId?.length > 0 &&
+                !foundOnGoogle && (
+                  <Tooltip title="Google Calendar Item was moved or deleted">
+                    <WarningIcon
+                      fontSize="large"
+                      sx={{ color: red[500] }}
+                    ></WarningIcon>
+                  </Tooltip>
+                )}
+              {firebaseEvent?.calendar.length === 0 &&
+                eventId?.length === 0 && (
+                  <Tooltip title="Item not yet scheduled">
+                    <WarningAmberIcon
+                      fontSize="large"
+                      sx={{ color: amber[500] }}
+                    ></WarningAmberIcon>
+                  </Tooltip>
+                )}
+              {firebaseEvent?.calendar.length > 0 &&
+                eventId?.length > 0 &&
+                foundOnGoogle && (
+                  <Tooltip title="Found on google">
+                    <VerifiedIcon
+                      fontSize="large"
+                      sx={{ color: green[500] }}
+                    ></VerifiedIcon>
+                  </Tooltip>
+                )}
+              <Button
+                disabled={
+                  !selectedCalendar || selectedCalendar === "pickacalender"
+                }
+                variant="contained"
+                size="medium"
+                className="saveButton"
+                onClick={handleSchedule}
+              >
+                Save
+              </Button>
+            </Grid>
+            {/* </Grid> */}
+          </CardContent>
+        )}
       </Card>
       <Dialog open={alertOpen} onClose={() => setAlertOpen(false)}>
         <DialogTitle>{alertText}</DialogTitle>

@@ -113,10 +113,6 @@ function JobsList() {
         });
     }
     setJobslist(datalist);
-    console.log("datalist", datalist);
-    // .then(response => response.json())
-    // .then(json => setJobslist(json))
-    // .catch(error => console.error(error));
   };
 
   interface Column {
