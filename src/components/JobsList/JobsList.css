@@ -1,9 +1,10 @@
 .jobslist {
   margin-top: 6px;
+  height: 92vh;
 }
 
 .drawerTitle {
-  display: "flex";
-  justify-content: "flex-end";
+  display: 'flex';
+  justify-content: 'flex-end';
   padding: 0 !important;
 }

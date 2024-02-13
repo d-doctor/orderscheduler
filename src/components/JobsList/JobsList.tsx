@@ -1,8 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect } from 'react';
 import {
   Box,
   Button,
-  Divider,
   FormControl,
   InputLabel,
   SelectChangeEvent,
@@ -20,18 +19,18 @@ import {
   Drawer,
   DialogTitle,
   IconButton,
-} from "@mui/material";
-import "./JobsList.css";
-import Calendar from "../Calendar/Calendar";
-import { useRecoilValue } from "recoil";
-import { userState, ec2TokenState } from "../../atoms/auth";
-import CancelIcon from "@mui/icons-material/Cancel";
-import { blue } from "@mui/material/colors";
+} from '@mui/material';
+import './JobsList.css';
+import Calendar from '../Calendar/Calendar';
+import { useRecoilValue } from 'recoil';
+import { userState, ec2TokenState } from '../../atoms/auth';
+import CancelIcon from '@mui/icons-material/Cancel';
+import { blue } from '@mui/material/colors';
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
   const user = useRecoilValue(userState);
-  const [reportType, setReportType] = React.useState("nonADA");
+  const [reportType, setReportType] = React.useState('nonADA');
   const [skipRows, setSkiprows] = React.useState(0);
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
   // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
@@ -49,9 +48,9 @@ function JobsList() {
   };
 
   const urlADA =
-    "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200";
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
   const urlNonADA =
-    "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200";
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -70,14 +69,14 @@ function JobsList() {
     let fetchError = false;
     let skipRows = 0;
     while (!fetchError && fetchMore) {
-      let url = reportType === "nonADA" ? urlNonADA : urlADA;
+      let url = reportType === 'nonADA' ? urlNonADA : urlADA;
       if (skipRows > 0) {
-        url += "&skip=" + skipRows.toString();
+        url += '&skip=' + skipRows.toString();
       }
       await fetch(url, {
         headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + ec2token,
+          accept: 'application/json',
+          Authorization: 'Bearer ' + ec2token,
         },
       })
         // eslint-disable-next-line no-loop-func
@@ -85,7 +84,7 @@ function JobsList() {
           if (response.status === 200) {
             return response.json();
           } else {
-            console.log("not good status");
+            console.log('not good status');
             fetchError = true;
             // setOrderFetchMore(false);
             // setOrderFetcherror(true);
@@ -108,7 +107,7 @@ function JobsList() {
         })
         // eslint-disable-next-line no-loop-func
         .catch((error) => {
-          console.log("error fetching", error);
+          console.log('error fetching', error);
           fetchError = true;
         });
     }
@@ -117,19 +116,20 @@ function JobsList() {
 
   interface Column {
     id:
-      | "orderNumber"
-      | "jobNumber"
-      | "partNumber"
-      | "partDescription"
-      | "orderTotal"
-      | "unitPrice"
-      | "quantityOrdered"
-      | "uniqueID"
-      | "dueDateString"
-      | "jobNotes";
+      | 'orderNumber'
+      | 'jobNumber'
+      | 'partNumber'
+      | 'partDescription'
+      | 'orderTotal'
+      | 'unitPrice'
+      | 'quantityOrdered'
+      | 'uniqueID'
+      | 'dueDateString'
+      | 'jobNotes'
+      | 'partDescriptionTruncated';
     label: string;
-    minWidth?: number;
-    align?: "right";
+    width: number;
+    align?: 'right';
     format?: (value: number) => string;
   }
 
@@ -149,13 +149,14 @@ function JobsList() {
     orderTotal: number;
     dueDateString: string;
     jobNotes: string;
+    partDescriptionTruncated: string;
   }
 
   useEffect(() => {
     function createData(data: Data): Data {
       const orderTotal = data.unitPrice * data.quantityOrdered;
       const dueDateString = data.dueDate
-        .toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })
+        .toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })
         .substring(0, 10);
       return {
         jobNumber: data.jobNumber,
@@ -169,6 +170,10 @@ function JobsList() {
         orderTotal: orderTotal,
         dueDateString: dueDateString,
         jobNotes: data.jobNotes,
+        partDescriptionTruncated:
+          data.partDescription?.length > 100
+            ? data.partDescription?.substring(0, 100) + ' ...'
+            : data.partDescription,
       };
     }
     if (jobsList) {
@@ -181,18 +186,22 @@ function JobsList() {
   }, [jobsList]);
 
   const columns: readonly Column[] = [
-    { id: "orderNumber", label: "Order", minWidth: 75 },
-    { id: "jobNumber", label: "Job", minWidth: 75 },
-    { id: "partNumber", label: "Part Number", minWidth: 75 },
-    { id: "partDescription", label: "Part Description", minWidth: 40 },
-    { id: "dueDateString", label: "Due", minWidth: 35 },
+    { id: 'dueDateString', label: 'Due', width: 50 },
+    { id: 'orderNumber', label: 'Order', width: 5 },
+    { id: 'jobNumber', label: 'Job', width: 15 },
+    { id: 'partNumber', label: 'Part Number', width: 5 },
     {
-      id: "orderTotal",
-      label: "Total",
-      minWidth: 30,
+      id: 'partDescriptionTruncated',
+      label: 'Part Description',
+      width: 200,
+    },
+    {
+      id: 'orderTotal',
+      label: 'Total',
+      width: 5,
       format: (value) => `$${value}`,
     },
-    { id: "jobNotes", label: "Job Notes", minWidth: 40 },
+    { id: 'jobNotes', label: 'Job Notes', width: 10 },
   ];
 
   const handleRowClick = (event: React.MouseEvent<unknown>, data: Data) => {
@@ -205,9 +214,9 @@ function JobsList() {
   const toggleDrawer =
     (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
       if (
-        event.type === "keydown" &&
-        ((event as React.KeyboardEvent).key === "Tab" ||
-          (event as React.KeyboardEvent).key === "Shift")
+        event.type === 'keydown' &&
+        ((event as React.KeyboardEvent).key === 'Tab' ||
+          (event as React.KeyboardEvent).key === 'Shift')
       ) {
         return;
       }
@@ -219,7 +228,7 @@ function JobsList() {
     <div className="jobslist">
       <Box
         alignItems="center"
-        sx={{ display: "flex", flexWrap: "wrap" }}
+        sx={{ display: 'flex', flexWrap: 'wrap' }}
         onClick={toggleDrawer(false)}
       >
         <FormControl style={{ minWidth: 120 }}>
@@ -232,8 +241,8 @@ function JobsList() {
             onChange={handleChange}
             label="Job Type"
           >
-            <MenuItem value={"nonADA"}>Non-ADA</MenuItem>
-            <MenuItem value={"ADA"}>ADA</MenuItem>
+            <MenuItem value={'nonADA'}>Non-ADA</MenuItem>
+            <MenuItem value={'ADA'}>ADA</MenuItem>
           </Select>
         </FormControl>
         <Button
@@ -254,17 +263,13 @@ function JobsList() {
           </Alert>
         )}
       </Box>
-      <TableContainer component={Paper} sx={{ maxHeight: 650 }}>
+      <TableContainer component={Paper} sx={{ height: 0.8 }}>
         {data && (
           <Table size="small" stickyHeader aria-label="sticky table">
             <TableHead>
               <TableRow>
                 {columns.map((col) => (
-                  <TableCell
-                    key={col.id}
-                    align={col.align}
-                    style={{ minWidth: col.minWidth }}
-                  >
+                  <TableCell key={col.id} align={col.align} width={col.width}>
                     {col.label}
                   </TableCell>
                 ))}
@@ -287,8 +292,12 @@ function JobsList() {
                       {columns.map((col) => {
                         const value = data[col.id];
                         return (
-                          <TableCell key={col.id} align={col.align}>
-                            {col.format && typeof value === "number"
+                          <TableCell
+                            key={col.id}
+                            align={col.align}
+                            width={col.width}
+                          >
+                            {col.format && typeof value === 'number'
                               ? col.format(value)
                               : value}
                           </TableCell>
@@ -302,7 +311,7 @@ function JobsList() {
         )}
       </TableContainer>
       <TablePagination
-        rowsPerPageOptions={[100]}
+        rowsPerPageOptions={[20]}
         component="div"
         count={jobsList?.length || 0}
         rowsPerPage={rowsPerPage}
@@ -319,14 +328,14 @@ function JobsList() {
       </div>
       <Drawer
         open={drawerOpen}
-        anchor={"right"}
-        PaperProps={{ sx: { width: "80%" } }}
+        anchor={'right'}
+        PaperProps={{ sx: { width: '80%' } }}
         onClose={toggleDrawer}
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", margin: 1 }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 1 }}>
           <IconButton
             onClick={toggleDrawer(false)}
-            style={{ position: "absolute", top: "0", right: "0" }}
+            style={{ position: 'absolute', top: '0', right: '0' }}
           >
             <CancelIcon sx={{ color: blue[500] }} />
           </IconButton>
