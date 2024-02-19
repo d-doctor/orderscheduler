@@ -286,7 +286,7 @@ function JobsList() {
               Get Orders
             </Button>
           )}
-          {filteredJobsList && filteredJobsList.length > 0 && (
+          {jobsList && jobsList.length > 0 && (
             <>
               <TextField
                 label="Search"
