@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -19,23 +19,28 @@ import {
   Drawer,
   DialogTitle,
   IconButton,
+  TextField,
+  Stack,
 } from '@mui/material';
 import './JobsList.css';
 import Calendar from '../Calendar/Calendar';
 import { useRecoilValue } from 'recoil';
 import { userState, ec2TokenState } from '../../atoms/auth';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { blue } from '@mui/material/colors';
+import SearchIcon from '@mui/icons-material/Search';
+import { blue, red } from '@mui/material/colors';
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
   const user = useRecoilValue(userState);
-  const [reportType, setReportType] = React.useState('nonADA');
-  const [skipRows, setSkiprows] = React.useState(0);
+  const [reportType, setReportType] = useState('nonADA');
+  const [skipRows, setSkiprows] = useState(0);
+  // const [searchValue, setSearchValue] = useState<string>();
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
   // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
-  const [jobsList, setJobslist] = React.useState<Data[]>();
-  const [data, setData] = React.useState<Data[]>();
+  const [jobsList, setJobslist] = useState<Data[]>();
+  const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
+  const [data, setData] = useState<Data[]>();
 
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(200);
@@ -68,6 +73,7 @@ function JobsList() {
     let fetchMore = true;
     let fetchError = false;
     let skipRows = 0;
+    setPage(0);
     while (!fetchError && fetchMore) {
       let url = reportType === 'nonADA' ? urlNonADA : urlADA;
       if (skipRows > 0) {
@@ -84,7 +90,6 @@ function JobsList() {
           if (response.status === 200) {
             return response.json();
           } else {
-            console.log('not good status');
             fetchError = true;
             // setOrderFetchMore(false);
             // setOrderFetcherror(true);
@@ -112,6 +117,7 @@ function JobsList() {
         });
     }
     setJobslist(datalist);
+    setFilteredJobslist(datalist);
   };
 
   interface Column {
@@ -133,9 +139,9 @@ function JobsList() {
     format?: (value: number) => string;
   }
 
-  interface JobsList {
-    Data: Data[];
-  }
+  // interface JobsList {
+  //   Data: Data[];
+  // }
 
   interface Data {
     jobNumber: string;
@@ -155,9 +161,11 @@ function JobsList() {
   useEffect(() => {
     function createData(data: Data): Data {
       const orderTotal = data.unitPrice * data.quantityOrdered;
-      const dueDateString = data.dueDate
-        .toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })
-        .substring(0, 10);
+      const dueDateString = new Date(data.dueDate).toLocaleString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+      });
       return {
         jobNumber: data.jobNumber,
         orderNumber: data.orderNumber,
@@ -176,17 +184,18 @@ function JobsList() {
             : data.partDescription,
       };
     }
-    if (jobsList) {
+    console.log('filteredJobsList useEffect');
+    if (filteredJobsList) {
       let newData = new Array<Data>();
-      jobsList.forEach((job) => {
+      filteredJobsList.forEach((job) => {
         newData.push(createData(job));
       });
       setData(newData);
     }
-  }, [jobsList]);
+  }, [filteredJobsList]);
 
   const columns: readonly Column[] = [
-    { id: 'dueDateString', label: 'Due', width: 50 },
+    { id: 'dueDateString', label: 'ECI Due', width: 50 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
     { id: 'partNumber', label: 'Part Number', width: 5 },
@@ -223,6 +232,27 @@ function JobsList() {
       setDrawerOpen(open);
     };
 
+  const searchJobs = useCallback(
+    (value: string) => {
+      if (value && value.length > 0) {
+        setFilteredJobslist(
+          jobsList?.filter((job) => {
+            return (
+              job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
+              job.orderNumber.toLowerCase().includes(value.toLowerCase()) ||
+              job.partDescription.toLowerCase().includes(value.toLowerCase()) ||
+              job.partNumber.toLowerCase().includes(value.toLowerCase())
+            );
+          })
+        );
+      } else {
+        setFilteredJobslist(jobsList);
+      }
+      setPage(0);
+    },
+    [jobsList]
+  );
+
   // const {data, loading, error} = useFetchOrders(token);
   return (
     <div className="jobslist">
@@ -231,37 +261,53 @@ function JobsList() {
         sx={{ display: 'flex', flexWrap: 'wrap' }}
         onClick={toggleDrawer(false)}
       >
-        <FormControl style={{ minWidth: 120 }}>
-          <InputLabel id="report-type-input-label">Job Type</InputLabel>
-          <Select
-            value={reportType}
-            size="medium"
-            labelId="report-type-input-label"
-            id="report-type-select"
-            onChange={handleChange}
-            label="Job Type"
-          >
-            <MenuItem value={'nonADA'}>Non-ADA</MenuItem>
-            <MenuItem value={'ADA'}>ADA</MenuItem>
-          </Select>
-        </FormControl>
-        <Button
-          variant="contained"
-          size="medium"
-          disabled={ec2token.length === 0}
-          onClick={handleGetJobs}
-        >
-          Get Orders
-        </Button>
-        {!user ||
-          (user.accessToken.length <= 0 && (
-            <Alert severity="warning">Must log in to continue</Alert>
-          ))}
-        {!ec2token && (
-          <Alert severity="warning">
-            Must click settings and get a valid token to continue
-          </Alert>
-        )}
+        <Stack direction={'row'} spacing={'10px'}>
+          <FormControl style={{ minWidth: 120 }}>
+            <InputLabel id="report-type-input-label">Job Type</InputLabel>
+            <Select
+              value={reportType}
+              size="medium"
+              labelId="report-type-input-label"
+              id="report-type-select"
+              onChange={handleChange}
+              label="Job Type"
+            >
+              <MenuItem value={'nonADA'}>Non-ADA</MenuItem>
+              <MenuItem value={'ADA'}>ADA</MenuItem>
+            </Select>
+          </FormControl>
+          {user && user.accessToken.length > 0 && (
+            <Button
+              variant="contained"
+              size="medium"
+              disabled={ec2token.length === 0}
+              onClick={handleGetJobs}
+            >
+              Get Orders
+            </Button>
+          )}
+          {filteredJobsList && filteredJobsList.length > 0 && (
+            <>
+              <TextField
+                label="Search"
+                size="medium"
+                type="search"
+                onChange={(event) => {
+                  searchJobs(event.target.value);
+                }}
+              />
+            </>
+          )}
+          {!user ||
+            (user.accessToken.length <= 0 && (
+              <Alert severity="warning">Must log in to continue</Alert>
+            ))}
+          {!ec2token && (
+            <Alert severity="warning">
+              Must click settings and get a valid token to continue
+            </Alert>
+          )}
+        </Stack>
       </Box>
       <TableContainer component={Paper} sx={{ height: 0.8 }}>
         {data && (
@@ -313,7 +359,7 @@ function JobsList() {
       <TablePagination
         rowsPerPageOptions={[20]}
         component="div"
-        count={jobsList?.length || 0}
+        count={filteredJobsList?.length || 0}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={handleChangePage}

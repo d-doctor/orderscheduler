@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from 'react';
 // import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import {
   Button,
@@ -13,9 +13,9 @@ import {
   Card,
   CardContent,
   Typography,
-} from "@mui/material";
-import { useRecoilValue } from "recoil";
-import { ec2TokenState, credentialState } from "../../atoms/auth";
+} from '@mui/material';
+import { useRecoilValue } from 'recoil';
+import { ec2TokenState, credentialState } from '../../atoms/auth';
 import {
   getDoc,
   getDocs,
@@ -26,18 +26,18 @@ import {
   collection,
   orderBy,
   query,
-} from "firebase/firestore";
-import { firebaseAuth, db } from "../../service/firebase";
+} from 'firebase/firestore';
+import { firebaseAuth, db } from '../../service/firebase';
 import {
   Data,
   Routing,
   ShippingAddress,
   Order,
-} from "../../interfaces/VendorModels";
-import { GoogCal } from "../../interfaces/GoogleModels";
-import { FirebaseEvent } from "../../interfaces/FirebaseModels";
-import Event from "../Event/Event";
-import dayjs from "dayjs";
+} from '../../interfaces/VendorModels';
+import { GoogCal } from '../../interfaces/GoogleModels';
+import { FirebaseEvent } from '../../interfaces/FirebaseModels';
+import Event from '../Event/Event';
+import dayjs from 'dayjs';
 
 interface props {
   orderItem: Data;
@@ -51,7 +51,7 @@ function Calendar({ orderItem }: props) {
   const [routings, setRoutings] = useState<Routing[]>();
   const [address, setAddress] = useState<ShippingAddress>();
   const [alertOpen, setAlertOpen] = useState(false);
-  const [alertText, setAlertText] = useState<string>("");
+  const [alertText, setAlertText] = useState<string>('');
   const [foundOnFirebase, setFoundOnFirebase] = useState<boolean>();
   const [firebaseDocData, setFirebaseDocData] = useState<DocumentData>();
   const [descriptionPrefix, setDescriptionPrefix] = useState<string>();
@@ -60,14 +60,14 @@ function Calendar({ orderItem }: props) {
   const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const [eventEditMode, setEventEditMode] = useState<boolean[]>([]);
   const getOrderURLpt1 =
-    "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/";
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
   const getOrderURLpt2 =
-    "?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered";
+    '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
   const getAddressURL =
-    "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/";
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/';
   // const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?jobNumber=';
   const getRoutingsURL =
-    "https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?fields=stepNumber%2CdepartmentNumber%2Cdescription%2CemployeeCode%2CpartNumber%2CworkCenter%2CcycleTime&jobNumber=";
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?fields=stepNumber%2CdepartmentNumber%2Cdescription%2CemployeeCode%2CpartNumber%2CworkCenter%2CcycleTime&jobNumber=';
   // const [ checkedSalesID, setCheckedSalesID ] = React.useState<boolean>();
   const [checkboxState, setCheckboxState] = React.useState({
     salesID: false,
@@ -108,11 +108,11 @@ function Calendar({ orderItem }: props) {
     // setValue(dayjs(orderItem.dueDate).hour(7));
     if ((credential?.accessToken, ec2token)) {
       let getCalendarListURL =
-        "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList';
       fetch(getCalendarListURL, {
         headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + credential?.accessToken,
+          accept: 'application/json',
+          Authorization: 'Bearer ' + credential?.accessToken,
         },
       }).then((response) =>
         response
@@ -127,22 +127,22 @@ function Calendar({ orderItem }: props) {
         let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
         fetch(url, {
           headers: {
-            accept: "application/json",
-            Authorization: "Bearer " + ec2token,
+            accept: 'application/json',
+            Authorization: 'Bearer ' + ec2token,
           },
         })
           .then((response) => response.json())
           .then((json) => setOrder(json.Data))
           .catch((error) => console.error(error));
       } else {
-        console.log("need order item and token to get address");
+        console.log('need order item and token to get address');
       }
       if (orderItem && ec2token) {
         let url = getRoutingsURL + orderItem.jobNumber;
         fetch(url, {
           headers: {
-            accept: "application/json",
-            Authorization: "Bearer " + ec2token,
+            accept: 'application/json',
+            Authorization: 'Bearer ' + ec2token,
           },
         })
           .then((response) => response.json())
@@ -154,11 +154,11 @@ function Calendar({ orderItem }: props) {
 
   useEffect(() => {
     if (order) {
-      let url = getAddressURL + order.customerCode + "/" + order.location;
+      let url = getAddressURL + order.customerCode + '/' + order.location;
       fetch(url, {
         headers: {
-          accept: "application/json",
-          Authorization: "Bearer " + ec2token,
+          accept: 'application/json',
+          Authorization: 'Bearer ' + ec2token,
         },
       })
         .then((response) => response.json())
@@ -168,7 +168,7 @@ function Calendar({ orderItem }: props) {
   }, [order, ec2token]);
 
   const lookupFirebaseJob = useCallback(() => {
-    const singleJobRef = doc(db, "jobs", orderItem.jobNumber);
+    const singleJobRef = doc(db, 'jobs', orderItem.jobNumber);
     const jobSnapshot = getDoc(singleJobRef);
     jobSnapshot.then((a) => {
       if (a.exists()) {
@@ -176,8 +176,8 @@ function Calendar({ orderItem }: props) {
         setFirebaseDocData(a.data());
         const eventsSnapshot = getDocs(
           query(
-            collection(db, "jobs", orderItem.jobNumber, "events"),
-            orderBy("addedDate")
+            collection(db, 'jobs', orderItem.jobNumber, 'events'),
+            orderBy('addedDate')
           )
         );
         eventsSnapshot.then((a) => {
@@ -230,29 +230,29 @@ function Calendar({ orderItem }: props) {
   const addEmptyEvent = useCallback(
     async (firstEvent: boolean) => {
       try {
-        const job = doc(db, "jobs", orderItem.jobNumber);
-        const eventsCollection = collection(job, "events");
+        const job = doc(db, 'jobs', orderItem.jobNumber);
+        const eventsCollection = collection(job, 'events');
         await addDoc(eventsCollection, {
-          calendar: "",
-          eventId: "",
-          htmlLink: "",
-          routing: "",
+          calendar: '',
+          eventId: '',
+          htmlLink: '',
+          routing: '',
           updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
-          description: "",
-          duration: "",
-          title: "",
+          description: '',
+          duration: '',
+          title: '',
           addedDate: dayjs().toISOString(),
         }).then((a) => {
           setAlertText(
             firstEvent
-              ? "No existing calendar items found - ready to schedule"
-              : "Added Event, Ready to Schedule"
+              ? 'No existing calendar items found - ready to schedule'
+              : 'Added Event, Ready to Schedule'
           );
           setAlertOpen(true);
           lookupFirebaseJob();
         });
       } catch (f) {
-        console.log("caught error adding empty event", f);
+        console.log('caught error adding empty event', f);
       }
     },
     [lookupFirebaseJob, orderItem.dueDate, orderItem.jobNumber]
@@ -260,7 +260,7 @@ function Calendar({ orderItem }: props) {
 
   const addFirebaseJob = useCallback(async () => {
     try {
-      await setDoc(doc(db, "jobs", orderItem.jobNumber), {
+      await setDoc(doc(db, 'jobs', orderItem.jobNumber), {
         jobNumber: orderItem.jobNumber,
         orderNumber: orderItem.orderNumber,
         originalDueDate: orderItem.dueDate,
@@ -269,7 +269,7 @@ function Calendar({ orderItem }: props) {
         addEmptyEvent(true);
       });
     } catch (f) {
-      setAlertText("Error sending job to SE data database");
+      setAlertText('Error sending job to SE data database');
       setAlertOpen(true);
       setButtonDisabled(false);
       console.log(f);
@@ -292,11 +292,11 @@ function Calendar({ orderItem }: props) {
   useEffect(() => {
     if (foundOnFirebase !== undefined) {
       if (!foundOnFirebase) {
-        console.log("got to add the job");
+        console.log('got to add the job');
         addFirebaseJob();
       } else {
         //TODO update the firestore at all?
-        console.log("we found the job no need to add it");
+        console.log('we found the job no need to add it');
       }
     }
   }, [addFirebaseJob, foundOnFirebase]);
@@ -309,51 +309,55 @@ function Calendar({ orderItem }: props) {
 
   const getAddress = useCallback(() => {
     if (addressBox) {
-      let gaddr = "";
+      let gaddr = '';
       gaddr =
         address?.shippingAddress1 +
-        " " +
+        ' ' +
         address?.shippingCity +
-        " " +
+        ' ' +
         address?.shippingState +
-        " " +
+        ' ' +
         address?.shippingZipCode;
       return gaddr;
     } else {
-      return "";
+      return '';
     }
   }, [addressBox, address]);
 
   const getSummary = useCallback(() => {
-    let description = "";
+    let description = '';
     //orderItem.partDescription
     if (salesID) {
       description += order?.salesID;
-      description += " ";
+      description += ' ';
     }
     if (dateEntered) {
-      description += order?.dateEntered.toLocaleString();
-      description += " ";
+      description += order?.dateEntered.toLocaleString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+      });
+      description += ' ';
     }
     if (orderNumber) {
       description += orderItem.orderNumber;
-      description += " ";
+      description += ' ';
     }
     if (jobNumber) {
       description += orderItem.jobNumber;
-      description += " ";
+      description += ' ';
     }
     if (partNumber) {
       description += orderItem.partNumber;
-      description += " ";
+      description += ' ';
     }
     if (customerDescription) {
       description += order?.customerDescription;
-      description += " ";
+      description += ' ';
     }
     if (location) {
       description += order?.location;
-      description += " ";
+      description += ' ';
     }
     return description;
   }, [
@@ -393,7 +397,7 @@ function Calendar({ orderItem }: props) {
 
   const setEditModeByIndex = useCallback(
     (i: number, inEdit: boolean) => {
-      console.log("setting edit mode for ", i);
+      console.log('setting edit mode for ', i);
       setEventEditMode([...eventEditMode]);
       const newEditModes = eventEditMode;
       newEditModes[i] = inEdit;
@@ -403,9 +407,9 @@ function Calendar({ orderItem }: props) {
   );
 
   const isEditMode = useCallback(() => {
-    console.log("is edit mode", eventEditMode?.filter((a) => !!a).length > 0);
+    console.log('is edit mode', eventEditMode?.filter((a) => !!a).length > 0);
     if (eventEditMode === undefined) {
-      console.log("i lied edit mode is false");
+      console.log('i lied edit mode is false');
       return false;
     } else {
       return eventEditMode.filter((a) => !!a).length > 0;
@@ -432,10 +436,10 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={salesID}
                           onChange={handleChecked}
-                          name={"salesID"}
+                          name={'salesID'}
                         />
                       }
-                      label={order?.salesID || "not found"}
+                      label={order?.salesID || 'not found'}
                     />
                   </Grid>
                 </Grid>
@@ -449,10 +453,16 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={dateEntered}
                           onChange={handleChecked}
-                          name={"dateEntered"}
+                          name={'dateEntered'}
                         />
                       }
-                      label={order?.dateEntered.toLocaleString() || "not found"}
+                      label={
+                        order?.dateEntered.toLocaleString('en-US', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          year: 'numeric',
+                        }) || 'not found'
+                      }
                     />
                   </Grid>
                 </Grid>
@@ -466,7 +476,7 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={orderNumber}
                           onChange={handleChecked}
-                          name={"orderNumber"}
+                          name={'orderNumber'}
                         />
                       }
                       label={order?.orderNumber}
@@ -483,7 +493,7 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={jobNumber}
                           onChange={handleChecked}
-                          name={"jobNumber"}
+                          name={'jobNumber'}
                         />
                       }
                       label={orderItem.jobNumber}
@@ -500,7 +510,7 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={partNumber}
                           onChange={handleChecked}
-                          name={"partNumber"}
+                          name={'partNumber'}
                         />
                       }
                       label={orderItem.partNumber}
@@ -517,7 +527,7 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={customerDescription}
                           onChange={handleChecked}
-                          name={"customerDescription"}
+                          name={'customerDescription'}
                         />
                       }
                       label={order?.customerDescription}
@@ -534,7 +544,7 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={location}
                           onChange={handleChecked}
-                          name={"location"}
+                          name={'location'}
                         />
                       }
                       label={order?.location}
@@ -562,13 +572,13 @@ function Calendar({ orderItem }: props) {
                         <Checkbox
                           checked={addressBox}
                           onChange={handleChecked}
-                          name={"addressBox"}
+                          name={'addressBox'}
                         />
                       }
                       label={
                         address?.shippingAddress1 ||
-                        "" + address?.shippingCity ||
-                        ""
+                        '' + address?.shippingCity ||
+                        ''
                       }
                     />
                   </Grid>

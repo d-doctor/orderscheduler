@@ -22,7 +22,7 @@ const auth = getAuth(firebaseapp);
 if (location.hostname === 'localhost') {
   console.log('local mode');
   // connectFirestoreEmulator(db, "127.0.0.1", 8084);
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  // connectFirestoreEmulator(db, '127.0.0.1', 8084);
   // connectAuthEmulator(auth, "http://localhost:9099");
   setLogLevel('debug');
 }

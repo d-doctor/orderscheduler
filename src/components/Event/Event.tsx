@@ -98,11 +98,7 @@ function Event({
   };
 
   const { routingBox } = checkboxState;
-  //{customerCode}/{location}
-
   const buildEvent = () => {
-    console.log('where: ', address);
-    console.log('summary, ', descriptionPrefix);
     const startDate = dateValue || dayjs();
     const endDate = startDate.add(parseInt(duration), 'hour');
     const timeZone = 'America/Chicago';
@@ -131,7 +127,7 @@ function Event({
 
   const sendEventToFirebase = async (eventId: string, htmlLink: string) => {
     try {
-      console.log('trying to add with event ID:  ', eventId?.toString());
+      console.log('send to firebase function with :  ', eventId?.toString());
       await setDoc(doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id), {
         calendar: selectedCalendar,
         eventId: eventId,
@@ -212,9 +208,12 @@ function Event({
       .then((response) => response.json())
       .then((json) => {
         console.log('move result ', json);
+        setOldCalendar(selectedCalendar);
         const eventRef = doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id);
         try {
-          console.log('trying to update calendar');
+          console.log(
+            'trying to update calendar in move function using updatedoc'
+          );
           updateDoc(eventRef, {
             calendar: selectedCalendar,
           }).then(() => {
@@ -421,8 +420,7 @@ function Event({
           setDateValue(dayjs(googleCalendarEvent.start.dateTime));
           let startD = dayjs(googleCalendarEvent.start.dateTime);
           let endD = dayjs(googleCalendarEvent.end.dateTime);
-          // setDuration(endD.diff(startD, 'hours').toString());
-          setDuration(Math.ceil(endD.diff(startD, 'hours')).toString());
+          setDuration(Math.ceil(endD.diff(startD, 'minutes') / 60).toString());
         }
       } else {
         console.log('setting date to ', dayjs(firebaseEvent?.updatedDueDate));
@@ -481,12 +479,7 @@ function Event({
           onClose={handleClose}
         >
           <MenuItem onClick={handleClose} disableRipple>
-            <DoubleArrowIcon />
-            Set User Date 1
-          </MenuItem>
-          <MenuItem onClick={handleClose} disableRipple>
-            <DoubleArrowIcon />
-            Set User Date 2
+            <DoubleArrowIcon />{' '}
           </MenuItem>
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
@@ -563,6 +556,7 @@ function Event({
                 label={'In Title'}
               />
               <DateTimePicker
+                timeSteps={{ hours: 1, minutes: 15 }}
                 slotProps={{ textField: { size: 'small' } }}
                 value={dateValue}
                 onChange={(newValue) => setDateValue(newValue)}
@@ -613,20 +607,6 @@ function Event({
                   </Select>
                 </FormControl>
               )}
-              <Button
-                disabled={
-                  !selectedCalendar || selectedCalendar === 'pickacalender'
-                }
-                variant="outlined"
-                size="small"
-                className="handleRefresh"
-                onClick={handleRefresh}
-              >
-                <Tooltip title="Refresh date from google calendar">
-                  <RefreshIcon fontSize="large" sx={{ color: blue[500] }} />
-                </Tooltip>
-              </Button>
-              <MenuButton></MenuButton>
             </Grid>
             <Grid
               container
@@ -697,6 +677,20 @@ function Event({
               >
                 Save
               </Button>
+              <Button
+                disabled={
+                  !selectedCalendar || selectedCalendar === 'pickacalender'
+                }
+                variant="outlined"
+                size="small"
+                className="handleRefresh"
+                onClick={handleRefresh}
+              >
+                <Tooltip title="Refresh date from google calendar">
+                  <RefreshIcon fontSize="large" sx={{ color: blue[500] }} />
+                </Tooltip>
+              </Button>
+              <MenuButton></MenuButton>
             </Grid>
             {/* </Grid> */}
           </CardContent>
