@@ -1,12 +1,12 @@
-import React from "react";
-import { firebaseAuth } from "../../service/firebase";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { Avatar, Button } from "@mui/material";
-import { useRecoilValue, useSetRecoilState } from "recoil";
-import { userState, credentialState } from "../../atoms/auth";
+import React from 'react';
+import { firebaseAuth } from '../../service/firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { Avatar, Button } from '@mui/material';
+import { useRecoilValue, useSetRecoilState } from 'recoil';
+import { userState, credentialState } from '../../atoms/auth';
 
 const provider = new GoogleAuthProvider();
-provider.addScope("https://www.googleapis.com/auth/calendar");
+provider.addScope('https://www.googleapis.com/auth/calendar');
 
 function Login() {
   const user = useRecoilValue(userState);

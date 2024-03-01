@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import useGetCalendarList from '../../hooks/useGetCalendarList';
 // import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import {
   Button,
@@ -59,6 +60,9 @@ function Calendar({ orderItem }: props) {
   const [orderEvents, setOrderEvents] = useState<FirebaseEvent[]>();
   const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const [eventEditMode, setEventEditMode] = useState<boolean[]>([]);
+  const { getCalendarList, getCalendarListResponse, getCalendarListError } =
+    useGetCalendarList();
+
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
   const getOrderURLpt2 =
@@ -104,24 +108,46 @@ function Calendar({ orderItem }: props) {
     setButtonDisabled(false);
   };
 
+  //TODO: PUT THE CALENDAR LIST IN RECOIL AND ONLY FETCH IT IF YOU NEED IT
   useEffect(() => {
-    // setValue(dayjs(orderItem.dueDate).hour(7));
+    if (getCalendarListError) {
+      console.log('get calendar list error', getCalendarListError);
+    }
+  }, [getCalendarListError]);
+
+  useEffect(() => {
+    if (getCalendarListResponse) {
+      setCalendarList(getCalendarListResponse.items);
+    }
+  }, [getCalendarListResponse]);
+
+  useEffect(() => {
+    //TODO cehck the token
+    if (orderItem && getCalendarList) {
+      getCalendarList();
+    }
+  }, [getCalendarList, orderItem]);
+
+  useEffect(() => {
     if ((credential?.accessToken, ec2token)) {
-      let getCalendarListURL =
-        'https://www.googleapis.com/calendar/v3/users/me/calendarList';
-      fetch(getCalendarListURL, {
-        headers: {
-          accept: 'application/json',
-          Authorization: 'Bearer ' + credential?.accessToken,
-        },
-      }).then((response) =>
-        response
-          .json()
-          .then((json) => {
-            setCalendarList(json.items);
-          })
-          .catch((e) => console.error(e))
-      );
+      // let getCalendarListURL =
+      //   'https://www.googleapis.com/calendar/v3/users/me/calendarList';
+      // fetch(getCalendarListURL, {
+      //   headers: {
+      //     accept: 'application/json',
+      //     Authorization: 'Bearer ' + credential?.accessToken,
+      //   },
+      // }).then((response) =>
+      //   response
+      //     .json()
+      //     .then((json) => {
+      //       console.log('did i actually get calendars ', json.items);
+      //       setCalendarList(json.items);
+      //     })
+      //     .catch((e) => {
+      //       console.error('error getting calendar list', e);
+      //     })
+      // );
 
       if (orderItem && ec2token) {
         let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
@@ -169,62 +195,48 @@ function Calendar({ orderItem }: props) {
 
   const lookupFirebaseJob = useCallback(() => {
     const singleJobRef = doc(db, 'jobs', orderItem.jobNumber);
-    const jobSnapshot = getDoc(singleJobRef);
-    jobSnapshot.then((a) => {
-      if (a.exists()) {
-        setFoundOnFirebase(true);
-        setFirebaseDocData(a.data());
-        const eventsSnapshot = getDocs(
-          query(
-            collection(db, 'jobs', orderItem.jobNumber, 'events'),
-            orderBy('addedDate')
-          )
-        );
-        eventsSnapshot.then((a) => {
-          const events: FirebaseEvent[] = [];
-          const editMode: boolean[] = [];
-          a.forEach((doc) => {
-            editMode.push(false);
-            const docData = doc.data();
-            events.push({
-              id: doc.id,
-              calendar: docData.calendar,
-              eventId: docData.eventId,
-              routing: docData.routing,
-              htmlLink: docData.htmlLink,
-              updatedDueDate: docData.updatedDueDate,
-              description: docData.description,
-              duration: docData.duration,
-              title: docData.title,
-              addedDate: docData.addedDate,
+    try {
+      let jobSnapshot = getDoc(singleJobRef);
+      jobSnapshot.then((a) => {
+        if (a.exists()) {
+          setFoundOnFirebase(true);
+          setFirebaseDocData(a.data());
+          const eventsSnapshot = getDocs(
+            query(
+              collection(db, 'jobs', orderItem.jobNumber, 'events'),
+              orderBy('addedDate')
+            )
+          );
+          eventsSnapshot.then((a) => {
+            const events: FirebaseEvent[] = [];
+            const editMode: boolean[] = [];
+            a.forEach((doc) => {
+              editMode.push(false);
+              const docData = doc.data();
+              events.push({
+                id: doc.id,
+                calendar: docData.calendar,
+                eventId: docData.eventId,
+                routing: docData.routing,
+                htmlLink: docData.htmlLink,
+                updatedDueDate: docData.updatedDueDate,
+                description: docData.description,
+                duration: docData.duration,
+                title: docData.title,
+                addedDate: docData.addedDate,
+              });
+              setOrderEvents(events);
             });
-            setOrderEvents(events);
           });
-        });
-        setButtonDisabled(false);
-      } else {
-        setFirebaseDocData(undefined);
-        setFoundOnFirebase(false);
-      }
-    });
-    // if (jobSnapshot.exists()) {
-    // setFoundOnFirebase(true);
-    //TODO remove set of doc data do we even need it here?
-    // setFirebaseDocData(jobSnapshot.data());
-    // console.log(
-    //   "set the date to this? ",
-    //   jobSnapshot.data().events[0].updatedDueDate
-    // );
-    // setValue(dayjs(jobSnapshot.data().events[0].updatedDueDate));
-    // console.log("found the job ", jobSnapshot.data());
-    // const eventsSnapshot = await getDocs(
-    //   collection(db, "jobs", orderItem.jobNumber, "events")
-    // );
-    // console.log("HERE IS YOUR EVENTS", eventsSnapshot);
-    // } else {
-    //   setFirebaseDocData(undefined);
-    //   setFoundOnFirebase(false);
-    // }
+          setButtonDisabled(false);
+        } else {
+          setFirebaseDocData(undefined);
+          setFoundOnFirebase(false);
+        }
+      });
+    } catch (e) {
+      console.log('looking up firebase job error a', e);
+    }
   }, [orderItem.jobNumber]);
 
   const addEmptyEvent = useCallback(

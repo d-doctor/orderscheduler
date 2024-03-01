@@ -36,6 +36,7 @@ import { GoogCal, GoogCalEvent } from '../../interfaces/GoogleModels';
 import { setDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { amber, blue, green, red } from '@mui/material/colors';
 import { db } from '../../service/firebase';
+import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
 
 interface Props {
   routings?: Routing[];
@@ -75,20 +76,28 @@ function Event({
   const [alertText, setAlertText] = useState<string>('');
   const [dateValue, setDateValue] = useState<Dayjs | null>(dayjs());
   const [eventId, setEventId] = useState<string>(firebaseEvent?.eventId);
+  const [calendarId, setCalendarId] = useState<string>(firebaseEvent?.calendar);
   const [description, setDescription] = React.useState<string>(
     firebaseEvent?.description || ''
   );
   const [title, setTitle] = React.useState<string>(firebaseEvent?.title || '');
   const [foundOnGoogle, setFoundOnGoogle] = React.useState<boolean>();
-  const [selectedCalendar, setSelectedCalendar] =
-    React.useState<string>('pickacalender');
-  const [oldCalendar, setOldCalendar] = React.useState<string>();
+  const [selectedCalendar, setSelectedCalendar] = React.useState<string>(
+    firebaseEvent?.calendar || 'pickacalender'
+  );
   const [checkboxState, setCheckboxState] = React.useState({
     routingBox: true,
   });
   const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
+
+  const {
+    getCalendarEvent,
+    getCalendarEventResponse,
+    getCalendarEventError,
+    getCalendarEventLoading,
+  } = useGetCalendarEvent();
 
   const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
     setCheckboxState({
@@ -173,6 +182,8 @@ function Event({
         htmlLink = json.htmlLink;
         eventId = json.id;
         setEventId(eventId);
+        console.log('setcalendar id', selectedCalendar);
+        setCalendarId(selectedCalendar);
       })
       .catch((e) => {
         // eventAdded("Failed to save to google calendar");
@@ -184,15 +195,26 @@ function Event({
   };
 
   const moveCalendarEvent = async () => {
-    //TODO this isn't getting the right selected calendar perhaps its a race condition with set state tht isn't working
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
+    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
     console.log('move selected calendar to: ', selectedCalendar);
-    console.log('old calendar: ', firebaseEvent?.calendar);
+    console.log('old calendar: ', calendarId);
 
     //TODO - FIX BUG - when you save from a dead firebase event
 
     const moveEventURL =
       'https://www.googleapis.com/calendar/v3/calendars/' +
-      firebaseEvent?.calendar +
+      calendarId +
       '/events/' +
       eventId +
       '/move?destination=' +
@@ -208,7 +230,6 @@ function Event({
       .then((response) => response.json())
       .then((json) => {
         console.log('move result ', json);
-        setOldCalendar(selectedCalendar);
         const eventRef = doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id);
         try {
           console.log(
@@ -219,6 +240,8 @@ function Event({
           }).then(() => {
             console.log('moved on firebase');
           });
+          console.log('setcalendar id', selectedCalendar);
+          setCalendarId(selectedCalendar);
         } catch (e) {
           console.log('failed moving on firebase', e);
         }
@@ -251,6 +274,7 @@ function Event({
         htmlLink = json.htmlLink;
         eId = json.id;
         setEventId(eId);
+        setCalendarId(selectedCalendar);
       })
       .catch((e) => {
         console.log('caught error scheduling');
@@ -259,7 +283,7 @@ function Event({
   };
 
   const deleteCalendarEvent = useCallback(async () => {
-    const calToDelete = oldCalendar ? oldCalendar : selectedCalendar;
+    const calToDelete = calendarId ? calendarId : selectedCalendar;
     const deleteEventURL =
       'https://www.googleapis.com/calendar/v3/calendars/' +
       calToDelete +
@@ -279,7 +303,7 @@ function Event({
       .catch((e) => {
         console.log('error deleting from calendar ', e);
       });
-  }, [credential?.accessToken, eventId, oldCalendar, selectedCalendar]);
+  }, [credential?.accessToken, eventId, calendarId, selectedCalendar]);
 
   const deleteFirebaseEvent = useCallback(async () => {
     try {
@@ -294,7 +318,11 @@ function Event({
 
   const handleSchedule = async () => {
     if (foundOnGoogle) {
-      if (oldCalendar && oldCalendar !== selectedCalendar) {
+      if (
+        calendarId &&
+        calendarId.length > 0 &&
+        calendarId !== selectedCalendar
+      ) {
         await moveCalendarEvent();
       }
       //TODO only update it if there wasn't a failure from the move above
@@ -352,16 +380,15 @@ function Event({
   };
 
   const handleDurationChange = (event: SelectChangeEvent) => {
+    console.log('handle duration change');
     setEventEditMode(index, true);
     setDuration(event.target.value);
   };
 
   const handleCalendarChange = (event: SelectChangeEvent) => {
+    console.log('handle calendar event change');
     if (foundOnGoogle) {
-      setOldCalendar(selectedCalendar);
       setSelectedCalendar(event.target.value);
-      console.log('this is the calendar', event.target.value);
-      console.log('this is the old calendar', oldCalendar);
       // moveCalendarEvent();
       //What happens if we redo the lookup here
     } else {
@@ -370,46 +397,80 @@ function Event({
     //TODO save teh firebase event here then also
   };
 
-  const lookupGoogleEvent = useCallback(async () => {
-    console.log('tryin lokoup event', firebaseEvent);
-    if (
-      credential?.accessToken &&
-      firebaseEvent &&
-      firebaseEvent.calendar &&
-      eventId &&
-      firebaseEvent.calendar.length > 0 &&
-      eventId.length > 0
-    ) {
-      let getCalendarURL =
-        'https://www.googleapis.com/calendar/v3/calendars/' +
-        firebaseEvent.calendar +
-        '/events/' +
-        eventId;
-      fetch(getCalendarURL, {
-        headers: {
-          accept: 'application/json',
-          Authorization: 'Bearer ' + credential?.accessToken,
-        },
-      })
-        .then((response) =>
-          response.json().then((json) => {
-            console.log('was the calendar json found', json);
-            if (json.error || json.status === 'cancelled') {
-              setFoundOnGoogle(false);
-            } else {
-              setFoundOnGoogle(true);
-              setGoogleCalendarEvent(json);
-            }
-          })
-        )
-        .catch((err) => {
-          console.log('error fetching calendar item', err);
-          setFoundOnGoogle(false);
-        });
-    } else {
-      setFoundOnGoogle(false);
+  //TODO this was the old one - delete it
+  // useEffect(() => {
+  //   console.log('use effect to lookup google event');
+  //   //if (firebaseEvent.calendar)
+  //   lookupGoogleEvent();
+  // }, [firebaseEvent, lookupGoogleEvent]);
+
+  useEffect(() => {
+    console.log('new use effect to lookup the date');
+    //TODO - do we want to trigger on firebaseEvent? maybe that creates a loop
+    if (firebaseEvent && eventId && calendarId) {
+      console.log('trying to look it up because i can');
+      getCalendarEvent({
+        calendarId: calendarId,
+        eventId: eventId,
+      });
     }
-  }, [firebaseEvent, credential?.accessToken, eventId]);
+  }, [getCalendarEvent, eventId, firebaseEvent, calendarId]);
+
+  useEffect(() => {
+    console.log('use effect calendar event error: ', getCalendarEventError);
+  }, [getCalendarEventError]);
+
+  useEffect(() => {
+    console.log('use effect calendar event response', getCalendarEventResponse);
+    if (
+      getCalendarEventResponse &&
+      getCalendarEventResponse.status !== 'cancelled'
+    ) {
+      setFoundOnGoogle(true);
+      setGoogleCalendarEvent(getCalendarEventResponse);
+    }
+  }, [getCalendarEventResponse]);
+
+  // const lookupGoogleEvent = useCallback(async () => {
+  //   console.log('function lookupGoogleEvent', firebaseEvent);
+  //   if (
+  //     credential?.accessToken &&
+  //     firebaseEvent &&
+  //     firebaseEvent.calendar &&
+  //     eventId &&
+  //     firebaseEvent.calendar.length > 0 &&
+  //     eventId.length > 0
+  //   ) {
+  //     let getCalendarURL =
+  //       'https://www.googleapis.com/calendar/v3/calendars/' +
+  //       firebaseEvent.calendar +
+  //       '/events/' +
+  //       eventId;
+  //     fetch(getCalendarURL, {
+  //       headers: {
+  //         accept: 'application/json',
+  //         Authorization: 'Bearer ' + credential?.accessToken,
+  //       },
+  //     })
+  //       .then((response) =>
+  //         response.json().then((json) => {
+  //           console.log('was the calendar json found', json);
+  //           if (json.error || json.status === 'cancelled') {
+  //             setFoundOnGoogle(false);
+  //           } else {
+  //             setFoundOnGoogle(true);
+  //             setGoogleCalendarEvent(json);
+  //           }
+  //         })
+  //       )
+  //       .catch((err) => {
+  //         console.log('error fetching calendar item', err);
+  //         setFoundOnGoogle(false);
+  //       });
+  //   } else {
+  //     setFoundOnGoogle(false);
+  //   }
+  // }, [firebaseEvent, credential?.accessToken, eventId]);
 
   useEffect(() => {
     console.log('use effect because foundongoogle', foundOnGoogle);
@@ -429,23 +490,22 @@ function Event({
     }
   }, [firebaseEvent?.updatedDueDate, foundOnGoogle, googleCalendarEvent]);
 
-  useEffect(() => {
-    console.log(
-      'use effect to set selected calendar, ',
-      firebaseEvent.calendar
-    );
-    setSelectedCalendar(firebaseEvent.calendar);
-  }, [firebaseEvent]);
-
-  useEffect(() => {
-    console.log('use effect to lookup google event');
-    //if (firebaseEvent.calendar)
-    lookupGoogleEvent();
-  }, [firebaseEvent, lookupGoogleEvent]);
+  // useEffect(() => {
+  //   console.log(
+  //     'use effect to set selected calendar, ',
+  //     firebaseEvent.calendar
+  //   );
+  //   setSelectedCalendar(firebaseEvent.calendar);
+  // }, [firebaseEvent]);
 
   const handleRefresh = async () => {
-    if (foundOnGoogle) {
-      lookupGoogleEvent();
+    //TODO use the new lookup
+    if (firebaseEvent && eventId && calendarId) {
+      console.log('trying to look it up because i can');
+      getCalendarEvent({
+        calendarId: calendarId,
+        eventId: eventId,
+      });
     }
   };
 
@@ -636,7 +696,7 @@ function Event({
                   setDescription(event.target.value);
                 }}
               />
-              {firebaseEvent?.calendar.length > 0 &&
+              {calendarId.length > 0 &&
                 eventId &&
                 eventId?.length > 0 &&
                 !foundOnGoogle && (
@@ -647,16 +707,15 @@ function Event({
                     ></WarningIcon>
                   </Tooltip>
                 )}
-              {firebaseEvent?.calendar.length === 0 &&
-                eventId?.length === 0 && (
-                  <Tooltip title="Item not yet scheduled">
-                    <WarningAmberIcon
-                      fontSize="large"
-                      sx={{ color: amber[500] }}
-                    ></WarningAmberIcon>
-                  </Tooltip>
-                )}
-              {firebaseEvent?.calendar.length > 0 &&
+              {calendarId.length === 0 && eventId?.length === 0 && (
+                <Tooltip title="Item not yet scheduled">
+                  <WarningAmberIcon
+                    fontSize="large"
+                    sx={{ color: amber[500] }}
+                  ></WarningAmberIcon>
+                </Tooltip>
+              )}
+              {calendarId.length > 0 &&
                 eventId?.length > 0 &&
                 foundOnGoogle && (
                   <Tooltip title="Found on google">
@@ -691,6 +750,9 @@ function Event({
                 </Tooltip>
               </Button>
               <MenuButton></MenuButton>
+              <div>{foundOnGoogle}</div>
+              <div>{eventId}</div>
+              <div>{calendarId}</div>
             </Grid>
             {/* </Grid> */}
           </CardContent>

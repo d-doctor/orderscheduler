@@ -27,14 +27,26 @@ import Calendar from '../Calendar/Calendar';
 import { useRecoilValue } from 'recoil';
 import { userState, ec2TokenState } from '../../atoms/auth';
 import CancelIcon from '@mui/icons-material/Cancel';
-import SearchIcon from '@mui/icons-material/Search';
-import { blue, red } from '@mui/material/colors';
+import { blue } from '@mui/material/colors';
+import { db } from '../../service/firebase';
+import {
+  collection,
+  getDocs,
+  getDocsFromServer,
+  limit,
+  orderBy,
+  query,
+} from 'firebase/firestore';
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
   const user = useRecoilValue(userState);
   const [reportType, setReportType] = useState('nonADA');
   const [skipRows, setSkiprows] = useState(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [scheduledDateList, setScheduledDateList] = useState<
+    { jobNumber: string; scheduledDate: string }[]
+  >([]);
   // const [searchValue, setSearchValue] = useState<string>();
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
   // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
@@ -68,7 +80,36 @@ function JobsList() {
     setPage(0);
   };
 
+  const getScheduledDate = async (jobNumber: string) => {
+    console.log('lookup date for ', jobNumber);
+    let updatedDueDate = '';
+    try {
+      const eventSnapshot = await getDocsFromServer(
+        query(
+          collection(db, 'jobs', jobNumber, 'events'),
+          orderBy('addedDate'),
+          limit(1)
+        )
+      );
+      if (!eventSnapshot.empty) {
+        eventSnapshot.forEach((doc) => {
+          updatedDueDate = doc.exists() ? doc.data().updatedDueDate : '';
+          console.log('got one doc ', doc.data());
+          setScheduledDateList((oldList) => [
+            { jobNumber: jobNumber, scheduledDate: updatedDueDate },
+            ...oldList,
+          ]);
+        });
+      }
+      // }
+      // );
+    } catch {
+      console.log('error looking up due date');
+    }
+  };
+
   const handleGetJobs = async () => {
+    setLoading(true);
     let datalist: Data[] = [];
     let fetchMore = true;
     let fetchError = false;
@@ -99,7 +140,8 @@ function JobsList() {
         .then((json) => {
           if (json) {
             setSkiprows(skipRows + json.Data.length);
-            json.Data.forEach((data: Data) => {
+            json.Data.forEach(async (data: Data) => {
+              getScheduledDate(data.jobNumber);
               datalist.push(data);
             });
             // datalist.push(json.Data);
@@ -132,7 +174,8 @@ function JobsList() {
       | 'uniqueID'
       | 'dueDateString'
       | 'jobNotes'
-      | 'partDescriptionTruncated';
+      | 'partDescriptionTruncated'
+      | 'updatedDueDate';
     label: string;
     width: number;
     align?: 'right';
@@ -156,7 +199,24 @@ function JobsList() {
     dueDateString: string;
     jobNotes: string;
     partDescriptionTruncated: string;
+    updatedDueDate: string;
   }
+
+  const retrieveStateDate = useCallback(
+    (jobNumber: string) => {
+      let sd = scheduledDateList.find(
+        (a) => a.jobNumber === jobNumber
+      )?.scheduledDate;
+      return sd
+        ? new Date(sd).toLocaleString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          })
+        : '';
+    },
+    [scheduledDateList]
+  );
 
   useEffect(() => {
     function createData(data: Data): Data {
@@ -182,6 +242,7 @@ function JobsList() {
           data.partDescription?.length > 100
             ? data.partDescription?.substring(0, 100) + ' ...'
             : data.partDescription,
+        updatedDueDate: retrieveStateDate(data.jobNumber) || '',
       };
     }
     console.log('filteredJobsList useEffect');
@@ -192,10 +253,12 @@ function JobsList() {
       });
       setData(newData);
     }
-  }, [filteredJobsList]);
+    setLoading(false);
+  }, [filteredJobsList, retrieveStateDate]);
 
   const columns: readonly Column[] = [
     { id: 'dueDateString', label: 'ECI Due', width: 50 },
+    { id: 'updatedDueDate', label: 'Updated Due', width: 50 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
     { id: 'partNumber', label: 'Part Number', width: 5 },
@@ -309,62 +372,71 @@ function JobsList() {
           )}
         </Stack>
       </Box>
-      <TableContainer component={Paper} sx={{ height: 0.8 }}>
-        {data && (
-          <Table size="small" stickyHeader aria-label="sticky table">
-            <TableHead>
-              <TableRow>
-                {columns.map((col) => (
-                  <TableCell key={col.id} align={col.align} width={col.width}>
-                    {col.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {data
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((data) => {
-                  const isItemSelected = isSelected(data.uniqueID);
-                  return (
-                    <TableRow
-                      hover
-                      role="checkbox"
-                      tabIndex={-1}
-                      key={data.jobNumber}
-                      onClick={(event) => handleRowClick(event, data)}
-                      selected={isItemSelected}
-                    >
-                      {columns.map((col) => {
-                        const value = data[col.id];
-                        return (
-                          <TableCell
-                            key={col.id}
-                            align={col.align}
-                            width={col.width}
-                          >
-                            {col.format && typeof value === 'number'
-                              ? col.format(value)
-                              : value}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  );
-                })}
-            </TableBody>
-          </Table>
-        )}
-      </TableContainer>
-      <TablePagination
-        rowsPerPageOptions={[20]}
-        component="div"
-        count={filteredJobsList?.length || 0}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+      {loading && <DialogTitle>Loading</DialogTitle>}
+      {!loading && (
+        <>
+          <TableContainer component={Paper} sx={{ height: 0.8 }}>
+            {data && (
+              <Table size="small" stickyHeader aria-label="sticky table">
+                <TableHead>
+                  <TableRow>
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col.id}
+                        align={col.align}
+                        width={col.width}
+                      >
+                        {col.label}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {data
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((data) => {
+                      const isItemSelected = isSelected(data.uniqueID);
+                      return (
+                        <TableRow
+                          hover
+                          role="checkbox"
+                          tabIndex={-1}
+                          key={data.jobNumber}
+                          onClick={(event) => handleRowClick(event, data)}
+                          selected={isItemSelected}
+                        >
+                          {columns.map((col) => {
+                            const value = data[col.id];
+                            return (
+                              <TableCell
+                                key={col.id}
+                                align={col.align}
+                                width={col.width}
+                              >
+                                {col.format && typeof value === 'number'
+                                  ? col.format(value)
+                                  : value}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            )}
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[20]}
+            component="div"
+            count={filteredJobsList?.length || 0}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </>
+      )}
       {/* <div>
         {jobsList ? <pre>{JSON.stringify(jobsList, null, 2)}</pre> : 'Loading...'}
       </div>         */}

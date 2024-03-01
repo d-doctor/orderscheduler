@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
 import { initializeApp, setLogLevel } from 'firebase/app';
-import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 // import { getFirestore, collection, getDocs } from 'firebase/firestore/lite';
 const firebaseConfig = {
@@ -21,10 +21,11 @@ const auth = getAuth(firebaseapp);
 
 if (location.hostname === 'localhost') {
   console.log('local mode');
-  // connectFirestoreEmulator(db, "127.0.0.1", 8084);
-  // connectFirestoreEmulator(db, '127.0.0.1', 8084);
-  // connectAuthEmulator(auth, "http://localhost:9099");
-  setLogLevel('debug');
+  // connectFirestoreEmulator(db, "127.0.0.1", 9199);
+  connectFirestoreEmulator(db, 'localhost', 9199);
+  // connectAuthEmulator(auth, 'http://localhost:9099');
+
+  // setLogLevel('debug');
 }
 
 export default firebaseapp;
