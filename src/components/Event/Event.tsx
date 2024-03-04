@@ -37,6 +37,7 @@ import { setDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { amber, blue, green, red } from '@mui/material/colors';
 import { db } from '../../service/firebase';
 import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
+import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 
 interface Props {
   routings?: Routing[];
@@ -48,6 +49,7 @@ interface Props {
   jobNumber: string;
   // eventAdded: (alert: string) => void;
   setEventEditMode: (index: number, editModeEnabled: boolean) => void;
+  addEvent: (first: boolean, fbEvent: FirebaseEvent) => void;
 }
 
 function Event({
@@ -60,6 +62,7 @@ function Event({
   jobNumber,
   // eventAdded,
   setEventEditMode,
+  addEvent,
 }: Props) {
   const credential = useRecoilValue(credentialState);
   const [duration, setDuration] = useState<string>(
@@ -74,9 +77,14 @@ function Event({
   );
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertText, setAlertText] = useState<string>('');
-  const [dateValue, setDateValue] = useState<Dayjs | null>(dayjs());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [dateValue, setDateValue] = useState<Dayjs>(
+    dayjs(firebaseEvent?.updatedDueDate) || dayjs()
+  );
   const [eventId, setEventId] = useState<string>(firebaseEvent?.eventId);
-  const [calendarId, setCalendarId] = useState<string>(firebaseEvent?.calendar);
+  const [calendarId, setCalendarId] = useState<string>(
+    firebaseEvent?.calendar || ''
+  );
   const [description, setDescription] = React.useState<string>(
     firebaseEvent?.description || ''
   );
@@ -91,6 +99,8 @@ function Event({
   const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
+  const [unsavedChanges, setUnsavedChange] = useState<boolean>(false);
+  const [saveInProgress, setSaveInProgress] = useState<boolean>(false);
 
   const {
     getCalendarEvent,
@@ -195,18 +205,6 @@ function Event({
   };
 
   const moveCalendarEvent = async () => {
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
-    //FIREBASE EVENT . CALENDAR IS NOT GETTING UPDATED - THE WHOLE EVENT IS PROB CAUSING THE ISSUES
     console.log('move selected calendar to: ', selectedCalendar);
     console.log('old calendar: ', calendarId);
 
@@ -340,6 +338,7 @@ function Event({
       await deleteCalendarEvent();
     }
     deleteFirebaseEvent();
+    setDeleteConfirmOpen(false);
   }, [deleteCalendarEvent, deleteFirebaseEvent, foundOnGoogle]);
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
@@ -431,47 +430,6 @@ function Event({
     }
   }, [getCalendarEventResponse]);
 
-  // const lookupGoogleEvent = useCallback(async () => {
-  //   console.log('function lookupGoogleEvent', firebaseEvent);
-  //   if (
-  //     credential?.accessToken &&
-  //     firebaseEvent &&
-  //     firebaseEvent.calendar &&
-  //     eventId &&
-  //     firebaseEvent.calendar.length > 0 &&
-  //     eventId.length > 0
-  //   ) {
-  //     let getCalendarURL =
-  //       'https://www.googleapis.com/calendar/v3/calendars/' +
-  //       firebaseEvent.calendar +
-  //       '/events/' +
-  //       eventId;
-  //     fetch(getCalendarURL, {
-  //       headers: {
-  //         accept: 'application/json',
-  //         Authorization: 'Bearer ' + credential?.accessToken,
-  //       },
-  //     })
-  //       .then((response) =>
-  //         response.json().then((json) => {
-  //           console.log('was the calendar json found', json);
-  //           if (json.error || json.status === 'cancelled') {
-  //             setFoundOnGoogle(false);
-  //           } else {
-  //             setFoundOnGoogle(true);
-  //             setGoogleCalendarEvent(json);
-  //           }
-  //         })
-  //       )
-  //       .catch((err) => {
-  //         console.log('error fetching calendar item', err);
-  //         setFoundOnGoogle(false);
-  //       });
-  //   } else {
-  //     setFoundOnGoogle(false);
-  //   }
-  // }, [firebaseEvent, credential?.accessToken, eventId]);
-
   useEffect(() => {
     console.log('use effect because foundongoogle', foundOnGoogle);
     if (foundOnGoogle !== undefined) {
@@ -490,18 +448,8 @@ function Event({
     }
   }, [firebaseEvent?.updatedDueDate, foundOnGoogle, googleCalendarEvent]);
 
-  // useEffect(() => {
-  //   console.log(
-  //     'use effect to set selected calendar, ',
-  //     firebaseEvent.calendar
-  //   );
-  //   setSelectedCalendar(firebaseEvent.calendar);
-  // }, [firebaseEvent]);
-
   const handleRefresh = async () => {
-    //TODO use the new lookup
     if (firebaseEvent && eventId && calendarId) {
-      console.log('trying to look it up because i can');
       getCalendarEvent({
         calendarId: calendarId,
         eventId: eventId,
@@ -518,6 +466,22 @@ function Event({
     const handleClose = () => {
       setAnchorEl(null);
     };
+
+    const handleCopy = () => {
+      addEvent(false, {
+        id: '-1',
+        calendar: selectedCalendar,
+        eventId: '',
+        htmlLink: '',
+        routing: selectedRouting,
+        updatedDueDate: dateValue?.toISOString() || '',
+        description: description,
+        duration: duration,
+        title: title,
+        addedDate: dayjs().toISOString(),
+      });
+    };
+
     return (
       <div>
         <Button
@@ -538,13 +502,20 @@ function Event({
           open={open}
           onClose={handleClose}
         >
-          <MenuItem onClick={handleClose} disableRipple>
-            <DoubleArrowIcon />{' '}
+          <MenuItem
+            onClick={() => {
+              handleCopy();
+              handleClose();
+            }}
+            disableRipple
+          >
+            <DoubleArrowIcon />
+            Copy
           </MenuItem>
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
             onClick={() => {
-              handleDelete();
+              setDeleteConfirmOpen(true);
               handleClose();
             }}
             disableRipple
@@ -619,7 +590,7 @@ function Event({
                 timeSteps={{ hours: 1, minutes: 15 }}
                 slotProps={{ textField: { size: 'small' } }}
                 value={dateValue}
-                onChange={(newValue) => setDateValue(newValue)}
+                onChange={(newValue) => setDateValue(newValue || dayjs())}
               />
               <FormControl style={{ minWidth: 120 }}>
                 <InputLabel id="duration-label">Duration</InputLabel>
@@ -696,7 +667,8 @@ function Event({
                   setDescription(event.target.value);
                 }}
               />
-              {calendarId.length > 0 &&
+              {calendarId &&
+                calendarId.length > 0 &&
                 eventId &&
                 eventId?.length > 0 &&
                 !foundOnGoogle && (
@@ -707,7 +679,8 @@ function Event({
                     ></WarningIcon>
                   </Tooltip>
                 )}
-              {calendarId.length === 0 && eventId?.length === 0 && (
+              {((calendarId.length === 0 && eventId?.length === 0) ||
+                (calendarId.length > 0 && !eventId)) && (
                 <Tooltip title="Item not yet scheduled">
                   <WarningAmberIcon
                     fontSize="large"
@@ -750,14 +723,18 @@ function Event({
                 </Tooltip>
               </Button>
               <MenuButton></MenuButton>
-              <div>{foundOnGoogle}</div>
-              <div>{eventId}</div>
-              <div>{calendarId}</div>
             </Grid>
             {/* </Grid> */}
           </CardContent>
         )}
       </Card>
+      <ConfirmationModal
+        open={deleteConfirmOpen}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => handleDelete()}
+        title={'Confirm Delete'}
+        message={'Do you really want to delete this event?'}
+      />
       <Dialog open={alertOpen} onClose={() => setAlertOpen(false)}>
         <DialogTitle>{alertText}</DialogTitle>
         <DialogActions>

@@ -40,11 +40,11 @@ import { FirebaseEvent } from '../../interfaces/FirebaseModels';
 import Event from '../Event/Event';
 import dayjs from 'dayjs';
 
-interface props {
+interface Props {
   orderItem: Data;
 }
 
-function Calendar({ orderItem }: props) {
+function Calendar({ orderItem }: Props) {
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
   const [calendarList, setCalendarList] = useState<GoogCal[]>();
@@ -104,7 +104,7 @@ function Calendar({ orderItem }: props) {
 
   const handleAddEvent = () => {
     setButtonDisabled(true);
-    addEmptyEvent(false);
+    addEvent(false);
     setButtonDisabled(false);
   };
 
@@ -194,6 +194,7 @@ function Calendar({ orderItem }: props) {
   }, [order, ec2token]);
 
   const lookupFirebaseJob = useCallback(() => {
+    console.log('looking up firebase job');
     const singleJobRef = doc(db, 'jobs', orderItem.jobNumber);
     try {
       let jobSnapshot = getDoc(singleJobRef);
@@ -239,20 +240,23 @@ function Calendar({ orderItem }: props) {
     }
   }, [orderItem.jobNumber]);
 
-  const addEmptyEvent = useCallback(
-    async (firstEvent: boolean) => {
+  const addEvent = useCallback(
+    async (firstEvent: boolean, event?: FirebaseEvent) => {
       try {
         const job = doc(db, 'jobs', orderItem.jobNumber);
         const eventsCollection = collection(job, 'events');
         await addDoc(eventsCollection, {
-          calendar: '',
+          event: event?.calendar || '',
           eventId: '',
           htmlLink: '',
-          routing: '',
-          updatedDueDate: dayjs(orderItem.dueDate).hour(7).toISOString(),
-          description: '',
-          duration: '',
-          title: '',
+          calendar: event?.calendar || '',
+          routing: event?.routing || '',
+          updatedDueDate:
+            event?.updatedDueDate ||
+            dayjs(orderItem.dueDate).hour(7).toISOString(),
+          description: event?.description || '',
+          duration: event?.duration || '',
+          title: event?.title || '',
           addedDate: dayjs().toISOString(),
         }).then((a) => {
           setAlertText(
@@ -278,7 +282,7 @@ function Calendar({ orderItem }: props) {
         originalDueDate: orderItem.dueDate,
         udpatedBy: firebaseAuth.currentUser?.email,
       }).then((a) => {
-        addEmptyEvent(true);
+        addEvent(true);
       });
     } catch (f) {
       setAlertText('Error sending job to SE data database');
@@ -286,12 +290,7 @@ function Calendar({ orderItem }: props) {
       setButtonDisabled(false);
       console.log(f);
     }
-  }, [
-    addEmptyEvent,
-    orderItem.dueDate,
-    orderItem.jobNumber,
-    orderItem.orderNumber,
-  ]);
+  }, [addEvent, orderItem.dueDate, orderItem.jobNumber, orderItem.orderNumber]);
 
   // useEffect(() => {
   //   if (firebaseDocData) {
@@ -617,6 +616,7 @@ function Calendar({ orderItem }: props) {
               descriptionPrefix &&
               orderEvents.map((fe: FirebaseEvent, idx: number) => (
                 <Event
+                  key={fe.addedDate}
                   routings={routings}
                   firebaseEvent={fe}
                   index={idx}
@@ -626,6 +626,7 @@ function Calendar({ orderItem }: props) {
                   jobNumber={orderItem.jobNumber}
                   // eventAdded={eventAdded}
                   setEventEditMode={setEditModeByIndex}
+                  addEvent={addEvent}
                 />
               ))}
           </Grid>

@@ -95,6 +95,7 @@ function JobsList() {
         eventSnapshot.forEach((doc) => {
           updatedDueDate = doc.exists() ? doc.data().updatedDueDate : '';
           console.log('got one doc ', doc.data());
+          //TODO - also query google if we want to be really insane?
           setScheduledDateList((oldList) => [
             { jobNumber: jobNumber, scheduledDate: updatedDueDate },
             ...oldList,
