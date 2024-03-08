@@ -227,7 +227,6 @@ function Event({
     await fetch(moveEventURL, postOpts)
       .then((response) => response.json())
       .then((json) => {
-        console.log('move result ', json);
         const eventRef = doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id);
         try {
           console.log(

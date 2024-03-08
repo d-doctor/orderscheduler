@@ -25,7 +25,7 @@ import {
 import './JobsList.css';
 import Calendar from '../Calendar/Calendar';
 import { useRecoilValue } from 'recoil';
-import { userState, ec2TokenState } from '../../atoms/auth';
+import { userState, ec2TokenState, credentialState } from '../../atoms/auth';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { blue } from '@mui/material/colors';
 import { db } from '../../service/firebase';
@@ -37,15 +37,20 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
+import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
 
 function JobsList() {
   const ec2token = useRecoilValue(ec2TokenState);
+  const credential = useRecoilValue(credentialState);
   const user = useRecoilValue(userState);
   const [reportType, setReportType] = useState('nonADA');
   const [skipRows, setSkiprows] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [scheduledDateList, setScheduledDateList] = useState<
     { jobNumber: string; scheduledDate: string }[]
+  >([]);
+  const [googleDateList, setGoogleDateList] = useState<
+    { jobNumber: string; googleDate: string }[]
   >([]);
   // const [searchValue, setSearchValue] = useState<string>();
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
@@ -81,7 +86,6 @@ function JobsList() {
   };
 
   const getScheduledDate = async (jobNumber: string) => {
-    console.log('lookup date for ', jobNumber);
     let updatedDueDate = '';
     try {
       const eventSnapshot = await getDocsFromServer(
@@ -94,19 +98,49 @@ function JobsList() {
       if (!eventSnapshot.empty) {
         eventSnapshot.forEach((doc) => {
           updatedDueDate = doc.exists() ? doc.data().updatedDueDate : '';
-          console.log('got one doc ', doc.data());
-          //TODO - also query google if we want to be really insane?
           setScheduledDateList((oldList) => [
             { jobNumber: jobNumber, scheduledDate: updatedDueDate },
             ...oldList,
           ]);
+          if (doc.exists() && doc.data().calendar && doc.data().eventId) {
+            getGoogleDate(doc.data().calendar, doc.data().eventId, jobNumber);
+          }
         });
       }
-      // }
-      // );
     } catch {
       console.log('error looking up due date');
     }
+  };
+
+  const getGoogleDate = async (
+    calendar: string,
+    eventId: string,
+    jobNumber: string
+  ) => {
+    const getCalendarEventURL =
+      'https://www.googleapis.com/calendar/v3/calendars/' +
+      calendar +
+      '/events/' +
+      eventId;
+    const fetchOpts = {
+      headers: {
+        accept: 'application/json',
+        Authorization: 'Bearer ' + credential?.accessToken,
+      },
+    };
+    await fetch(getCalendarEventURL, fetchOpts).then(async (response) => {
+      try {
+        const json = await response.json();
+        if (!json.error && json.state !== 'cancelled') {
+          setGoogleDateList((oldList) => [
+            { jobNumber: jobNumber, googleDate: json.start.dateTime },
+            ...oldList,
+          ]);
+        }
+      } catch (e) {
+        console.log('error getting a calendar ', e);
+      }
+    });
   };
 
   const handleGetJobs = async () => {
@@ -176,7 +210,8 @@ function JobsList() {
       | 'dueDateString'
       | 'jobNotes'
       | 'partDescriptionTruncated'
-      | 'updatedDueDate';
+      | 'updatedDueDate'
+      | 'googleStartDate';
     label: string;
     width: number;
     align?: 'right';
@@ -201,6 +236,7 @@ function JobsList() {
     jobNotes: string;
     partDescriptionTruncated: string;
     updatedDueDate: string;
+    googleStartDate: string;
   }
 
   const retrieveStateDate = useCallback(
@@ -217,6 +253,22 @@ function JobsList() {
         : '';
     },
     [scheduledDateList]
+  );
+
+  const retrieveStateGoogleDate = useCallback(
+    (jobNumber: string) => {
+      let sd = googleDateList.find(
+        (a) => a.jobNumber === jobNumber
+      )?.googleDate;
+      return sd
+        ? new Date(sd).toLocaleString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          })
+        : '';
+    },
+    [googleDateList]
   );
 
   useEffect(() => {
@@ -244,9 +296,9 @@ function JobsList() {
             ? data.partDescription?.substring(0, 100) + ' ...'
             : data.partDescription,
         updatedDueDate: retrieveStateDate(data.jobNumber) || '',
+        googleStartDate: retrieveStateGoogleDate(data.jobNumber) || '',
       };
     }
-    console.log('filteredJobsList useEffect');
     if (filteredJobsList) {
       let newData = new Array<Data>();
       filteredJobsList.forEach((job) => {
@@ -255,11 +307,12 @@ function JobsList() {
       setData(newData);
     }
     setLoading(false);
-  }, [filteredJobsList, retrieveStateDate]);
+  }, [filteredJobsList, retrieveStateDate, retrieveStateGoogleDate]);
 
   const columns: readonly Column[] = [
-    { id: 'dueDateString', label: 'ECI Due', width: 50 },
-    { id: 'updatedDueDate', label: 'Updated Due', width: 50 },
+    { id: 'dueDateString', label: 'ECI Due', width: 20 },
+    { id: 'updatedDueDate', label: 'Updated Due', width: 20 },
+    { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
     { id: 'partNumber', label: 'Part Number', width: 5 },
