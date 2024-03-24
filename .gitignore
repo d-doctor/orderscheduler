@@ -21,3 +21,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+firebase-debug.log
+firestore-debug.log
+.firebase/hosting.YnVpbGQ.cache
+functions/.eslintrc.js
+ui-debug.log
+.firebase/hosting.YnVpbGQ.cache
+src/components/JobsList/orderscheduler.code-workspace

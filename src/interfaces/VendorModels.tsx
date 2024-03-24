@@ -1,3 +1,9 @@
+export interface EciResult {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
 export interface Routing {
   stepNumber: number;
   departmentNumber: string;

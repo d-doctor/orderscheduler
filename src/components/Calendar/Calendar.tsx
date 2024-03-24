@@ -78,11 +78,11 @@ function Calendar({ orderItem }: Props) {
     dateEntered: false,
     orderNumber: false,
     jobNumber: true,
-    partNumber: true,
-    customerDescription: true,
+    partNumber: false,
+    customerDescription: false,
     location: true,
     addressBox: true,
-    routingBox: true,
+    routingBox: false,
   });
   const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
     setCheckboxState({

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { firebaseAuth } from '../../service/firebase';
 import {
   Box,
   Button,
@@ -31,27 +32,41 @@ import { blue } from '@mui/material/colors';
 import { db } from '../../service/firebase';
 import {
   collection,
-  getDocs,
   getDocsFromServer,
   limit,
   orderBy,
   query,
 } from 'firebase/firestore';
-import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 function JobsList() {
+  const auth = getAuth();
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      console.log('USER IN JOBS LIST', user);
+      console.log('AUTH IN JOBS LIST', auth);
+      // ...
+    } else {
+      console.log('SIGNED OUT USER IN JOBS LIST', user);
+      console.log('SIGNED OUT AUTH IN JOBS LIST', auth);
+    }
+  });
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
   const user = useRecoilValue(userState);
   const [reportType, setReportType] = useState('nonADA');
   const [skipRows, setSkiprows] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
-  const [scheduledDateList, setScheduledDateList] = useState<
-    { jobNumber: string; scheduledDate: string }[]
-  >([]);
-  const [googleDateList, setGoogleDateList] = useState<
-    { jobNumber: string; googleDate: string }[]
-  >([]);
+  const [scheduledDateList, setScheduledDateList] = useState(
+    new Map<string, string>()
+  );
+  const [googleDateList, setGoogleDateList] = useState(
+    new Map<string, string>()
+  );
+  // //TODO: change this to a map so no dupes
+  // const [googleDateList, setGoogleDateList] = useState<
+  //   { jobNumber: string; googleDate: string }[]
+  // >([]);
   // const [searchValue, setSearchValue] = useState<string>();
   // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
   // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
@@ -59,10 +74,11 @@ function JobsList() {
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
   const [data, setData] = useState<Data[]>();
 
-  const [page, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(200);
-  const [selectedorder, setSelectedOrder] = React.useState<Data>();
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(200);
+  const [selectedorder, setSelectedOrder] = useState<Data>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // const [notesOpen, setNotesOpen] = useState(false);
   // const useFetchOrders = require("../../hooks/useFetchOrders")
 
   const handleChange = (event: SelectChangeEvent) => {
@@ -97,11 +113,19 @@ function JobsList() {
       );
       if (!eventSnapshot.empty) {
         eventSnapshot.forEach((doc) => {
-          updatedDueDate = doc.exists() ? doc.data().updatedDueDate : '';
-          setScheduledDateList((oldList) => [
-            { jobNumber: jobNumber, scheduledDate: updatedDueDate },
-            ...oldList,
-          ]);
+          updatedDueDate = doc.exists()
+            ? new Date(doc.data().updatedDueDate).toLocaleDateString('en-US', {
+                month: '2-digit',
+                day: '2-digit',
+                year: 'numeric',
+              })
+            : '';
+          setScheduledDateList((old) => {
+            var newmap = new Map(old);
+            newmap.set(jobNumber, updatedDueDate);
+            return newmap;
+          });
+          console.log('set scheduled date list ', scheduledDateList);
           if (doc.exists() && doc.data().calendar && doc.data().eventId) {
             getGoogleDate(doc.data().calendar, doc.data().eventId, jobNumber);
           }
@@ -117,6 +141,13 @@ function JobsList() {
     eventId: string,
     jobNumber: string
   ) => {
+    let accessToken;
+    await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
+      console.log('went to get my token', result);
+      accessToken = result.token;
+      console.log('one token', accessToken);
+      console.log('the other token', user.oauthAccessToken);
+    });
     const getCalendarEventURL =
       'https://www.googleapis.com/calendar/v3/calendars/' +
       calendar +
@@ -132,10 +163,15 @@ function JobsList() {
       try {
         const json = await response.json();
         if (!json.error && json.state !== 'cancelled') {
-          setGoogleDateList((oldList) => [
-            { jobNumber: jobNumber, googleDate: json.start.dateTime },
-            ...oldList,
-          ]);
+          setGoogleDateList((old) => {
+            let newMap = new Map(old);
+            let gDate = new Date(json.start.dateTime).toLocaleDateString(
+              'en-US',
+              { month: '2-digit', day: '2-digit', year: 'numeric' }
+            );
+            newMap.set(jobNumber, gDate);
+            return newMap;
+          });
         }
       } catch (e) {
         console.log('error getting a calendar ', e);
@@ -149,6 +185,7 @@ function JobsList() {
     let fetchMore = true;
     let fetchError = false;
     let skipRows = 0;
+    let row = 1;
     setPage(0);
     while (!fetchError && fetchMore) {
       let url = reportType === 'nonADA' ? urlNonADA : urlADA;
@@ -177,7 +214,9 @@ function JobsList() {
             setSkiprows(skipRows + json.Data.length);
             json.Data.forEach(async (data: Data) => {
               getScheduledDate(data.jobNumber);
+              data.rowNum = row;
               datalist.push(data);
+              row++;
             });
             // datalist.push(json.Data);
             if (json.Data.length === 200) {
@@ -199,6 +238,7 @@ function JobsList() {
 
   interface Column {
     id:
+      | 'rowNum'
       | 'orderNumber'
       | 'jobNumber'
       | 'partNumber'
@@ -208,7 +248,6 @@ function JobsList() {
       | 'quantityOrdered'
       | 'uniqueID'
       | 'dueDateString'
-      | 'jobNotes'
       | 'partDescriptionTruncated'
       | 'updatedDueDate'
       | 'googleStartDate';
@@ -223,6 +262,7 @@ function JobsList() {
   // }
 
   interface Data {
+    rowNum: number;
     jobNumber: string;
     orderNumber: string;
     partNumber: string;
@@ -233,7 +273,6 @@ function JobsList() {
     quantityOrdered: number;
     orderTotal: number;
     dueDateString: string;
-    jobNotes: string;
     partDescriptionTruncated: string;
     updatedDueDate: string;
     googleStartDate: string;
@@ -241,15 +280,8 @@ function JobsList() {
 
   const retrieveStateDate = useCallback(
     (jobNumber: string) => {
-      let sd = scheduledDateList.find(
-        (a) => a.jobNumber === jobNumber
-      )?.scheduledDate;
-      return sd
-        ? new Date(sd).toLocaleString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-            year: 'numeric',
-          })
+      return scheduledDateList.has(jobNumber)
+        ? scheduledDateList.get(jobNumber)
         : '';
     },
     [scheduledDateList]
@@ -257,16 +289,7 @@ function JobsList() {
 
   const retrieveStateGoogleDate = useCallback(
     (jobNumber: string) => {
-      let sd = googleDateList.find(
-        (a) => a.jobNumber === jobNumber
-      )?.googleDate;
-      return sd
-        ? new Date(sd).toLocaleString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-            year: 'numeric',
-          })
-        : '';
+      return googleDateList.has(jobNumber) ? googleDateList.get(jobNumber) : '';
     },
     [googleDateList]
   );
@@ -280,6 +303,7 @@ function JobsList() {
         year: 'numeric',
       });
       return {
+        rowNum: data.rowNum,
         jobNumber: data.jobNumber,
         orderNumber: data.orderNumber,
         partNumber: data.partNumber,
@@ -290,7 +314,6 @@ function JobsList() {
         quantityOrdered: data.quantityOrdered,
         orderTotal: orderTotal,
         dueDateString: dueDateString,
-        jobNotes: data.jobNotes,
         partDescriptionTruncated:
           data.partDescription?.length > 100
             ? data.partDescription?.substring(0, 100) + ' ...'
@@ -310,6 +333,7 @@ function JobsList() {
   }, [filteredJobsList, retrieveStateDate, retrieveStateGoogleDate]);
 
   const columns: readonly Column[] = [
+    { id: 'rowNum', label: 'Row', width: 10 },
     { id: 'dueDateString', label: 'ECI Due', width: 20 },
     { id: 'updatedDueDate', label: 'Updated Due', width: 20 },
     { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
@@ -327,13 +351,17 @@ function JobsList() {
       width: 5,
       format: (value) => `$${value}`,
     },
-    { id: 'jobNotes', label: 'Job Notes', width: 10 },
   ];
 
   const handleRowClick = (event: React.MouseEvent<unknown>, data: Data) => {
     setSelectedOrder(data);
     setDrawerOpen(true);
   };
+
+  // const handleNotesClick = (event: React.MouseEvent<unknown>, data: Data) => {
+  //   setSelectedOrder(data);
+  //   setNotesOpen(true);
+  // };
 
   const isSelected = (uniqueID: number) => selectedorder?.uniqueID === uniqueID;
 
@@ -348,6 +376,17 @@ function JobsList() {
       }
       setDrawerOpen(open);
     };
+  // const toggleNotes =
+  //   (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
+  //     if (
+  //       event.type === 'keydown' &&
+  //       ((event as React.KeyboardEvent).key === 'Tab' ||
+  //         (event as React.KeyboardEvent).key === 'Shift')
+  //     ) {
+  //       return;
+  //     }
+  //     setNotesOpen(open);
+  //   };
 
   const searchJobs = useCallback(
     (value: string) => {
@@ -355,6 +394,10 @@ function JobsList() {
         setFilteredJobslist(
           jobsList?.filter((job) => {
             return (
+              scheduledDateList.get(job.jobNumber)?.includes(value) ||
+              googleDateList.get(job.jobNumber)?.includes(value) ||
+              // job.dueDateString?.toLowerCase().includes(value.toLowerCase()) || //can't actually search this string need to format it //OR DO WE NEED TO SEARCH THE data instead of the jobslist?
+              //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
               job.orderNumber.toLowerCase().includes(value.toLowerCase()) ||
               job.partDescription.toLowerCase().includes(value.toLowerCase()) ||
@@ -367,7 +410,7 @@ function JobsList() {
       }
       setPage(0);
     },
-    [jobsList]
+    [googleDateList, jobsList, scheduledDateList]
   );
 
   // const {data, loading, error} = useFetchOrders(token);
@@ -419,10 +462,9 @@ function JobsList() {
             (user.accessToken.length <= 0 && (
               <Alert severity="warning">Must log in to continue</Alert>
             ))}
+          {/* {ec2token && <Alert severity="warning">{ec2token}</Alert>} */}
           {!ec2token && (
-            <Alert severity="warning">
-              Must click settings and get a valid token to continue
-            </Alert>
+            <Alert severity="warning">Must log in to continue</Alert>
           )}
         </Stack>
       </Box>
@@ -443,6 +485,9 @@ function JobsList() {
                         {col.label}
                       </TableCell>
                     ))}
+                    {/* <TableCell key="notesLabel" align="center" width="80">
+                      Notes
+                    </TableCell> */}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -456,7 +501,6 @@ function JobsList() {
                           role="checkbox"
                           tabIndex={-1}
                           key={data.jobNumber}
-                          onClick={(event) => handleRowClick(event, data)}
                           selected={isItemSelected}
                         >
                           {columns.map((col) => {
@@ -466,6 +510,7 @@ function JobsList() {
                                 key={col.id}
                                 align={col.align}
                                 width={col.width}
+                                onClick={(event) => handleRowClick(event, data)}
                               >
                                 {col.format && typeof value === 'number'
                                   ? col.format(value)
@@ -473,6 +518,17 @@ function JobsList() {
                               </TableCell>
                             );
                           })}
+                          {/* <TableCell>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={(event) => {
+                                handleNotesClick(event, data);
+                              }}
+                            >
+                              Notes
+                            </Button>
+                          </TableCell> */}
                         </TableRow>
                       );
                     })}
@@ -491,13 +547,6 @@ function JobsList() {
           />
         </>
       )}
-      {/* <div>
-        {jobsList ? <pre>{JSON.stringify(jobsList, null, 2)}</pre> : 'Loading...'}
-      </div>         */}
-      <div>
-        {/* <Divider textAlign="left">Selected Job</Divider> */}
-        {/* {selectedorder && <Calendar orderItem={selectedorder} />} */}
-      </div>
       <Drawer
         open={drawerOpen}
         anchor={'right'}
@@ -514,6 +563,22 @@ function JobsList() {
         </DialogTitle>
         {selectedorder && <Calendar orderItem={selectedorder} />}
       </Drawer>
+      {/* <Drawer
+        open={notesOpen}
+        anchor={'right'}
+        PaperProps={{ sx: { width: '80%' } }}
+        onClose={toggleNotes}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 1 }}>
+          <IconButton
+            onClick={toggleNotes(false)}
+            style={{ position: 'absolute', top: '0', right: '0' }}
+          >
+            <CancelIcon sx={{ color: blue[500] }} />
+          </IconButton>
+        </DialogTitle>
+        {selectedorder && <Notes orderItem={selectedorder} />}
+      </Drawer> */}
     </div>
   );
 }

@@ -93,9 +93,6 @@ function Event({
   const [selectedCalendar, setSelectedCalendar] = React.useState<string>(
     firebaseEvent?.calendar || 'pickacalender'
   );
-  const [checkboxState, setCheckboxState] = React.useState({
-    routingBox: true,
-  });
   const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
@@ -109,21 +106,13 @@ function Event({
     getCalendarEventLoading,
   } = useGetCalendarEvent();
 
-  const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setCheckboxState({
-      ...checkboxState,
-      [event.target.name]: event.target.checked,
-    });
-  };
-
-  const { routingBox } = checkboxState;
   const buildEvent = () => {
     const startDate = dateValue || dayjs();
     const endDate = startDate.add(parseInt(duration), 'hour');
     const timeZone = 'America/Chicago';
     // const summary = descriptionPrefix || "" + routingBox ? selectedRouting : "";
     let summary = descriptionPrefix || '';
-    if (routingBox) {
+    if (selectedRouting && selectedRouting !== 'norouting') {
       summary += ' ' + selectedRouting;
     }
     summary += title ? ' ' + title : '';
@@ -562,6 +551,9 @@ function Event({
                     onChange={handleRoutingChange}
                     label="Duration"
                   >
+                    <MenuItem key="norouting" value="norouting">
+                      None
+                    </MenuItem>
                     {routings.map((routing: Routing, idx) => (
                       <MenuItem key={idx} value={routing?.workCenter}>
                         {routing?.workCenter +
@@ -575,16 +567,6 @@ function Event({
                   </Select>
                 )}
               </FormControl>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={routingBox}
-                    onChange={handleChecked}
-                    name={'routingBox'}
-                  />
-                }
-                label={'In Title'}
-              />
               <DateTimePicker
                 timeSteps={{ hours: 1, minutes: 15 }}
                 slotProps={{ textField: { size: 'small' } }}
