@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { firebaseAuth } from '../../service/firebase';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import {
   Box,
   Button,
@@ -38,6 +40,7 @@ import {
   query,
 } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { access } from 'fs';
 
 function JobsList() {
   const auth = getAuth();
@@ -63,13 +66,7 @@ function JobsList() {
   const [googleDateList, setGoogleDateList] = useState(
     new Map<string, string>()
   );
-  // //TODO: change this to a map so no dupes
-  // const [googleDateList, setGoogleDateList] = useState<
-  //   { jobNumber: string; googleDate: string }[]
-  // >([]);
-  // const [searchValue, setSearchValue] = useState<string>();
-  // const [orderFetchError, setOrderFetcherror ] = React.useState<boolean>(false);
-  // const [orderFetchMore, setOrderFetchMore ] = React.useState<boolean>(true);
+  const [salesIdList, setSalesIdList] = useState(new Map<string, string>());
   const [jobsList, setJobslist] = useState<Data[]>();
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
   const [data, setData] = useState<Data[]>();
@@ -78,8 +75,6 @@ function JobsList() {
   const [rowsPerPage, setRowsPerPage] = useState(200);
   const [selectedorder, setSelectedOrder] = useState<Data>();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // const [notesOpen, setNotesOpen] = useState(false);
-  // const useFetchOrders = require("../../hooks/useFetchOrders")
 
   const handleChange = (event: SelectChangeEvent) => {
     setReportType(event.target.value);
@@ -89,6 +84,9 @@ function JobsList() {
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
   const urlNonADA =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
+  const getOrderURLpt1 =
+    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
+  const getOrderURLpt2 = '?fields=orderNumber%2CsalesID';
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -102,6 +100,7 @@ function JobsList() {
   };
 
   const getScheduledDate = async (jobNumber: string) => {
+    console.log('getting scheduled date for ', jobNumber);
     let updatedDueDate = '';
     try {
       const eventSnapshot = await getDocsFromServer(
@@ -136,6 +135,32 @@ function JobsList() {
     }
   };
 
+  const getSalesId = async (orderNumber: string) => {
+    if (salesIdList && salesIdList.has(orderNumber)) {
+      console.log('already have this sales id do nothing');
+    } else {
+      const getSalesIdURL = getOrderURLpt1 + orderNumber + getOrderURLpt2;
+      await fetch(getSalesIdURL, {
+        headers: {
+          accept: 'application/json',
+          Authorization: 'Bearer ' + ec2token,
+        },
+      })
+        .then((response) => {
+          return response.json();
+        })
+        .then((json) => {
+          console.log('got this json', json);
+          setSalesIdList((old) => {
+            let newSalesMap = new Map(old);
+            newSalesMap.set(orderNumber, json.Data.salesID);
+            return newSalesMap;
+          });
+        })
+        .catch((error) => console.error(error));
+    }
+  };
+
   const getGoogleDate = async (
     calendar: string,
     eventId: string,
@@ -143,10 +168,8 @@ function JobsList() {
   ) => {
     let accessToken;
     await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
-      console.log('went to get my token', result);
       accessToken = result.token;
-      console.log('one token', accessToken);
-      console.log('the other token', user.oauthAccessToken);
+      console.log('what is this other at ', accessToken);
     });
     const getCalendarEventURL =
       'https://www.googleapis.com/calendar/v3/calendars/' +
@@ -214,6 +237,7 @@ function JobsList() {
             setSkiprows(skipRows + json.Data.length);
             json.Data.forEach(async (data: Data) => {
               getScheduledDate(data.jobNumber);
+              getSalesId(data.orderNumber);
               data.rowNum = row;
               datalist.push(data);
               row++;
@@ -250,7 +274,8 @@ function JobsList() {
       | 'dueDateString'
       | 'partDescriptionTruncated'
       | 'updatedDueDate'
-      | 'googleStartDate';
+      | 'googleStartDate'
+      | 'salesID';
     label: string;
     width: number;
     align?: 'right';
@@ -276,6 +301,7 @@ function JobsList() {
     partDescriptionTruncated: string;
     updatedDueDate: string;
     googleStartDate: string;
+    salesID: string;
   }
 
   const retrieveStateDate = useCallback(
@@ -292,6 +318,13 @@ function JobsList() {
       return googleDateList.has(jobNumber) ? googleDateList.get(jobNumber) : '';
     },
     [googleDateList]
+  );
+
+  const retrieveStateSalesID = useCallback(
+    (orderNumber: string) => {
+      return salesIdList.has(orderNumber) ? salesIdList.get(orderNumber) : '';
+    },
+    [salesIdList]
   );
 
   useEffect(() => {
@@ -320,6 +353,7 @@ function JobsList() {
             : data.partDescription,
         updatedDueDate: retrieveStateDate(data.jobNumber) || '',
         googleStartDate: retrieveStateGoogleDate(data.jobNumber) || '',
+        salesID: retrieveStateSalesID(data.orderNumber) || '',
       };
     }
     if (filteredJobsList) {
@@ -330,10 +364,16 @@ function JobsList() {
       setData(newData);
     }
     setLoading(false);
-  }, [filteredJobsList, retrieveStateDate, retrieveStateGoogleDate]);
+  }, [
+    filteredJobsList,
+    retrieveStateDate,
+    retrieveStateGoogleDate,
+    retrieveStateSalesID,
+  ]);
 
   const columns: readonly Column[] = [
     { id: 'rowNum', label: 'Row', width: 10 },
+    { id: 'salesID', label: 'SalesID', width: 10 },
     { id: 'dueDateString', label: 'ECI Due', width: 20 },
     { id: 'updatedDueDate', label: 'Updated Due', width: 20 },
     { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
@@ -396,6 +436,7 @@ function JobsList() {
             return (
               scheduledDateList.get(job.jobNumber)?.includes(value) ||
               googleDateList.get(job.jobNumber)?.includes(value) ||
+              salesIdList.get(job.orderNumber)?.includes(value.toUpperCase()) ||
               // job.dueDateString?.toLowerCase().includes(value.toLowerCase()) || //can't actually search this string need to format it //OR DO WE NEED TO SEARCH THE data instead of the jobslist?
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
@@ -410,8 +451,33 @@ function JobsList() {
       }
       setPage(0);
     },
-    [googleDateList, jobsList, scheduledDateList]
+    [googleDateList, jobsList, salesIdList, scheduledDateList]
   );
+
+  const exportToExcel = () => {
+    if (data) {
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+
+      const excelBuff = XLSX.write(workbook, {
+        bookType: 'xlsx',
+        type: 'array',
+      });
+      const blob = new Blob([excelBuff], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+      });
+
+      const fileName =
+        'JobsList-AsOf-' +
+        new Date().toLocaleDateString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+        });
+      saveAs(blob);
+    }
+  };
 
   // const {data, loading, error} = useFetchOrders(token);
   return (
@@ -421,7 +487,7 @@ function JobsList() {
         sx={{ display: 'flex', flexWrap: 'wrap' }}
         onClick={toggleDrawer(false)}
       >
-        <Stack direction={'row'} spacing={'10px'}>
+        <Stack direction="row" spacing={2} justifyContent="space-between">
           <FormControl style={{ minWidth: 120 }}>
             <InputLabel id="report-type-input-label">Job Type</InputLabel>
             <Select
@@ -462,10 +528,17 @@ function JobsList() {
             (user.accessToken.length <= 0 && (
               <Alert severity="warning">Must log in to continue</Alert>
             ))}
-          {/* {ec2token && <Alert severity="warning">{ec2token}</Alert>} */}
           {!ec2token && (
             <Alert severity="warning">Must log in to continue</Alert>
           )}
+          <Button
+            variant="contained"
+            size="medium"
+            disabled={!data}
+            onClick={exportToExcel}
+          >
+            Export
+          </Button>
         </Stack>
       </Box>
       {loading && <DialogTitle>Loading</DialogTitle>}
@@ -518,17 +591,6 @@ function JobsList() {
                               </TableCell>
                             );
                           })}
-                          {/* <TableCell>
-                            <Button
-                              variant="contained"
-                              size="small"
-                              onClick={(event) => {
-                                handleNotesClick(event, data);
-                              }}
-                            >
-                              Notes
-                            </Button>
-                          </TableCell> */}
                         </TableRow>
                       );
                     })}
@@ -550,7 +612,7 @@ function JobsList() {
       <Drawer
         open={drawerOpen}
         anchor={'right'}
-        PaperProps={{ sx: { width: '80%' } }}
+        PaperProps={{ sx: { width: '95%' } }}
         onClose={toggleDrawer}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 1 }}>
@@ -563,22 +625,6 @@ function JobsList() {
         </DialogTitle>
         {selectedorder && <Calendar orderItem={selectedorder} />}
       </Drawer>
-      {/* <Drawer
-        open={notesOpen}
-        anchor={'right'}
-        PaperProps={{ sx: { width: '80%' } }}
-        onClose={toggleNotes}
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 1 }}>
-          <IconButton
-            onClick={toggleNotes(false)}
-            style={{ position: 'absolute', top: '0', right: '0' }}
-          >
-            <CancelIcon sx={{ color: blue[500] }} />
-          </IconButton>
-        </DialogTitle>
-        {selectedorder && <Notes orderItem={selectedorder} />}
-      </Drawer> */}
     </div>
   );
 }

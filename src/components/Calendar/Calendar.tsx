@@ -36,9 +36,10 @@ import {
   Order,
 } from '../../interfaces/VendorModels';
 import { GoogCal } from '../../interfaces/GoogleModels';
-import { FirebaseEvent } from '../../interfaces/FirebaseModels';
+import { FirebaseEvent, FirebaseNote } from '../../interfaces/FirebaseModels';
 import Event from '../Event/Event';
 import dayjs from 'dayjs';
+import NoteModal from '../NoteModal/NoteModal';
 
 interface Props {
   orderItem: Data;
@@ -58,10 +59,12 @@ function Calendar({ orderItem }: Props) {
   const [descriptionPrefix, setDescriptionPrefix] = useState<string>();
   const [displayAddress, setDisplayAddress] = useState<string>();
   const [orderEvents, setOrderEvents] = useState<FirebaseEvent[]>();
+  const [notes, setNotes] = useState<FirebaseNote[]>();
   const [buttonDisabled, setButtonDisabled] = useState<boolean>(true);
   const [eventEditMode, setEventEditMode] = useState<boolean[]>([]);
   const { getCalendarList, getCalendarListResponse, getCalendarListError } =
     useGetCalendarList();
+  const [notesOpen, setNotesOpen] = useState<boolean>(false);
 
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
@@ -194,7 +197,6 @@ function Calendar({ orderItem }: Props) {
   }, [order, ec2token]);
 
   const lookupFirebaseJob = useCallback(() => {
-    console.log('looking up firebase job');
     const singleJobRef = doc(db, 'jobs', orderItem.jobNumber);
     try {
       let jobSnapshot = getDoc(singleJobRef);
@@ -239,6 +241,40 @@ function Calendar({ orderItem }: Props) {
       console.log('looking up firebase job error a', e);
     }
   }, [orderItem.jobNumber]);
+
+  const lookupFirebaseNotes = useCallback(() => {
+    // const jobRef = doc(db, 'jobs', orderItem.jobNumber);
+    try {
+      const notes: FirebaseNote[] = [];
+      const notesSnapshot = getDocs(
+        query(
+          collection(db, 'jobs', orderItem.jobNumber, 'notes'),
+          orderBy('addedDate')
+        )
+      );
+      notesSnapshot.then((n) => {
+        n.forEach((note) => {
+          const noteData = note.data();
+          notes.push({
+            id: note.id,
+            addedBy: noteData.addedBy,
+            addedDate: noteData.addedDate,
+            text: noteData.text,
+            status: noteData.status,
+          });
+        });
+        setNotes(notes);
+      });
+    } catch (e) {
+      console.log('error getting notes snapshot ', e);
+    }
+  }, [orderItem.jobNumber]);
+
+  useEffect(() => {
+    if (order) {
+      lookupFirebaseNotes();
+    }
+  }, [order, ec2token, lookupFirebaseNotes]);
 
   const addEvent = useCallback(
     async (firstEvent: boolean, event?: FirebaseEvent) => {
@@ -596,7 +632,18 @@ function Calendar({ orderItem }: Props) {
                 </Grid>
               </CardContent>
             </Card>
-            <Grid container item direction="row" justifyContent="flex-end">
+            <Grid container item direction="row" justifyContent="space-between">
+              <Button
+                variant="contained"
+                size="medium"
+                className="addNoteButton"
+                onClick={() => {
+                  setNotesOpen(true);
+                }}
+                disabled={buttonDisabled}
+              >
+                Add Note
+              </Button>
               <Button
                 variant="contained"
                 size="medium"
@@ -608,6 +655,9 @@ function Calendar({ orderItem }: Props) {
               </Button>
             </Grid>
           </FormGroup>
+          {/* <Grid container item direction=""> */}
+
+          {/* </Grid> */}
         </Grid>
         <Grid container item xs={9} direction="column" rowGap={1}>
           <Grid spacing={0} direction="row" alignItems="center" columnGap={1}>
@@ -631,6 +681,16 @@ function Calendar({ orderItem }: Props) {
               ))}
           </Grid>
         </Grid>
+        <Grid container item xs={9} direction="column" rowGap={1}>
+          {notes &&
+            notes.map((note: FirebaseNote, idx: number) => (
+              <Grid spacing={0} direction="row" columnGap={1}>
+                <Typography>
+                  {note.text} - {note.addedBy}
+                </Typography>
+              </Grid>
+            ))}
+        </Grid>
       </Grid>
       <Dialog open={alertOpen} onClose={handleCloseDialog}>
         <DialogTitle>{alertText}</DialogTitle>
@@ -640,6 +700,11 @@ function Calendar({ orderItem }: Props) {
           </Button>
         </DialogActions>
       </Dialog>
+      <NoteModal
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+        jobNumber={orderItem.jobNumber}
+      ></NoteModal>
     </>
   );
 }

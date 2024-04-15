@@ -100,7 +100,11 @@ function Login() {
         firebaseAuth.currentUser.displayName &&
         firebaseAuth.currentUser.displayName.length > 0 && (
           <>
-            <Button variant="contained" size="medium">
+            <Button
+              variant="contained"
+              size="medium"
+              onClick={handleLoginClick}
+            >
               {firebaseAuth.currentUser?.displayName || ''}
               <Avatar src={user.photoURL} />
             </Button>

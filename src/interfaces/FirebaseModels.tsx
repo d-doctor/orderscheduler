@@ -10,3 +10,11 @@ export interface FirebaseEvent {
   title: string;
   addedDate: string;
 }
+
+export interface FirebaseNote {
+  id: string;
+  addedBy: string;
+  addedDate: string;
+  status: string;
+  text: string;
+}
