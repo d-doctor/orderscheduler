@@ -66,7 +66,9 @@ function JobsList() {
   const [googleDateList, setGoogleDateList] = useState(
     new Map<string, string>()
   );
-  const [salesIdList, setSalesIdList] = useState(new Map<string, string>());
+  const [salesIdList, setSalesIdList] = useState(
+    new Map<string, { salesId: string; customerDescription: string }>()
+  );
   const [jobsList, setJobslist] = useState<Data[]>();
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
   const [data, setData] = useState<Data[]>();
@@ -86,7 +88,8 @@ function JobsList() {
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
-  const getOrderURLpt2 = '?fields=orderNumber%2CsalesID';
+  const getOrderURLpt2 = '?fields=orderNumber%2CsalesID%2CcustomerDescription';
+  //'?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -150,10 +153,12 @@ function JobsList() {
           return response.json();
         })
         .then((json) => {
-          console.log('got this json', json);
           setSalesIdList((old) => {
             let newSalesMap = new Map(old);
-            newSalesMap.set(orderNumber, json.Data.salesID);
+            newSalesMap.set(orderNumber, {
+              salesId: json.Data.salesID,
+              customerDescription: json.Data.customerDescription,
+            });
             return newSalesMap;
           });
         })
@@ -275,7 +280,8 @@ function JobsList() {
       | 'partDescriptionTruncated'
       | 'updatedDueDate'
       | 'googleStartDate'
-      | 'salesID';
+      | 'salesID'
+      | 'customerDescription';
     label: string;
     width: number;
     align?: 'right';
@@ -302,6 +308,7 @@ function JobsList() {
     updatedDueDate: string;
     googleStartDate: string;
     salesID: string;
+    customerDescription: string;
   }
 
   const retrieveStateDate = useCallback(
@@ -322,7 +329,9 @@ function JobsList() {
 
   const retrieveStateSalesID = useCallback(
     (orderNumber: string) => {
-      return salesIdList.has(orderNumber) ? salesIdList.get(orderNumber) : '';
+      return salesIdList.has(orderNumber)
+        ? salesIdList.get(orderNumber)
+        : { salesId: '', customerDescription: '' };
     },
     [salesIdList]
   );
@@ -353,7 +362,9 @@ function JobsList() {
             : data.partDescription,
         updatedDueDate: retrieveStateDate(data.jobNumber) || '',
         googleStartDate: retrieveStateGoogleDate(data.jobNumber) || '',
-        salesID: retrieveStateSalesID(data.orderNumber) || '',
+        salesID: retrieveStateSalesID(data.orderNumber)?.salesId || '',
+        customerDescription:
+          retrieveStateSalesID(data.orderNumber)?.customerDescription || '',
       };
     }
     if (filteredJobsList) {
@@ -379,6 +390,7 @@ function JobsList() {
     { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
+    { id: 'customerDescription', label: 'Customer', width: 40 },
     { id: 'partNumber', label: 'Part Number', width: 5 },
     {
       id: 'partDescriptionTruncated',
@@ -436,7 +448,12 @@ function JobsList() {
             return (
               scheduledDateList.get(job.jobNumber)?.includes(value) ||
               googleDateList.get(job.jobNumber)?.includes(value) ||
-              salesIdList.get(job.orderNumber)?.includes(value.toUpperCase()) ||
+              salesIdList
+                .get(job.orderNumber)
+                ?.salesId.includes(value.toUpperCase()) ||
+              salesIdList
+                .get(job.orderNumber)
+                ?.customerDescription.includes(value.toUpperCase()) ||
               // job.dueDateString?.toLowerCase().includes(value.toLowerCase()) || //can't actually search this string need to format it //OR DO WE NEED TO SEARCH THE data instead of the jobslist?
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
