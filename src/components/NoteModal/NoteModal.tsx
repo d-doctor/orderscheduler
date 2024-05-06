@@ -33,17 +33,19 @@ function NoteModal({ open, jobNumber, onClose }: Props) {
     } catch (e) {
       console.log('failed to save note', e);
     }
+    setNote('');
     onClose();
   }, [jobNumber, note, onClose]);
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} maxWidth={'xl'} fullWidth={true}>
       <DialogTitle>Enter a Note</DialogTitle>
       <DialogContent dividers>
         <TextField
           id="note"
           required
           size="small"
+          fullWidth
           label="Note Text"
           value={note}
           onChange={(event) => {

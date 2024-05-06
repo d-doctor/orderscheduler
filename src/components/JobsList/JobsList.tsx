@@ -40,7 +40,6 @@ import {
   query,
 } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { access } from 'fs';
 
 function JobsList() {
   const auth = getAuth();
@@ -66,8 +65,22 @@ function JobsList() {
   const [googleDateList, setGoogleDateList] = useState(
     new Map<string, string>()
   );
-  const [salesIdList, setSalesIdList] = useState(
-    new Map<string, { salesId: string; customerDescription: string }>()
+  // const [firebaseStartDateMap, setFirebaseStartDateMap] = useState(
+  //   new Map<string, string>()
+  // );
+  // const [gcalDatesMap, setGcalDatesMap] = useState(
+  //   new Map<string, string>()
+  // );
+  const [orderMap, setOrderMap] = useState(
+    new Map<
+      string,
+      {
+        salesId: string;
+        customerDescription: string;
+        location: string;
+        dateEntered: string;
+      }
+    >()
   );
   const [jobsList, setJobslist] = useState<Data[]>();
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
@@ -88,7 +101,8 @@ function JobsList() {
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
-  const getOrderURLpt2 = '?fields=orderNumber%2CsalesID%2CcustomerDescription';
+  const getOrderURLpt2 =
+    '?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation';
   //'?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
 
   const handleChangePage = (event: unknown, newPage: number) => {
@@ -139,7 +153,7 @@ function JobsList() {
   };
 
   const getSalesId = async (orderNumber: string) => {
-    if (salesIdList && salesIdList.has(orderNumber)) {
+    if (orderMap && orderMap.has(orderNumber)) {
       console.log('already have this sales id do nothing');
     } else {
       const getSalesIdURL = getOrderURLpt1 + orderNumber + getOrderURLpt2;
@@ -153,13 +167,21 @@ function JobsList() {
           return response.json();
         })
         .then((json) => {
-          setSalesIdList((old) => {
-            let newSalesMap = new Map(old);
-            newSalesMap.set(orderNumber, {
+          setOrderMap((old) => {
+            let newOrderMap = new Map(old);
+            newOrderMap.set(orderNumber, {
               salesId: json.Data.salesID,
               customerDescription: json.Data.customerDescription,
+              location: json.Data.location,
+              dateEntered: json.Data.dateEntered
+                ? new Date(json.Data.dateEntered).toLocaleString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: 'numeric',
+                  })
+                : '',
             });
-            return newSalesMap;
+            return newOrderMap;
           });
         })
         .catch((error) => console.error(error));
@@ -281,7 +303,10 @@ function JobsList() {
       | 'updatedDueDate'
       | 'googleStartDate'
       | 'salesID'
-      | 'customerDescription';
+      | 'customerDescription'
+      | 'location'
+      | 'dateEntered'
+      | 'note';
     label: string;
     width: number;
     align?: 'right';
@@ -309,6 +334,9 @@ function JobsList() {
     googleStartDate: string;
     salesID: string;
     customerDescription: string;
+    location: string;
+    dateEntered: string;
+    note: string;
   }
 
   const retrieveStateDate = useCallback(
@@ -329,11 +357,16 @@ function JobsList() {
 
   const retrieveStateSalesID = useCallback(
     (orderNumber: string) => {
-      return salesIdList.has(orderNumber)
-        ? salesIdList.get(orderNumber)
-        : { salesId: '', customerDescription: '' };
+      return orderMap.has(orderNumber)
+        ? orderMap.get(orderNumber)
+        : {
+            salesId: '',
+            customerDescription: '',
+            location: '',
+            dateEntered: '',
+          };
     },
-    [salesIdList]
+    [orderMap]
   );
 
   useEffect(() => {
@@ -365,6 +398,9 @@ function JobsList() {
         salesID: retrieveStateSalesID(data.orderNumber)?.salesId || '',
         customerDescription:
           retrieveStateSalesID(data.orderNumber)?.customerDescription || '',
+        location: retrieveStateSalesID(data.orderNumber)?.location || '',
+        dateEntered: retrieveStateSalesID(data.orderNumber)?.dateEntered || '',
+        note: '',
       };
     }
     if (filteredJobsList) {
@@ -383,14 +419,16 @@ function JobsList() {
   ]);
 
   const columns: readonly Column[] = [
-    { id: 'rowNum', label: 'Row', width: 10 },
-    { id: 'salesID', label: 'SalesID', width: 10 },
-    { id: 'dueDateString', label: 'ECI Due', width: 20 },
-    { id: 'updatedDueDate', label: 'Updated Due', width: 20 },
+    { id: 'rowNum', label: 'Row', width: 5 },
+    { id: 'salesID', label: 'SalesID', width: 5 },
+    { id: 'dateEntered', label: 'Entered', width: 7 },
+    { id: 'dueDateString', label: 'ECI Due', width: 10 },
+    { id: 'updatedDueDate', label: 'Updated Due', width: 10 },
     { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
     { id: 'customerDescription', label: 'Customer', width: 40 },
+    { id: 'location', label: 'Location', width: 40 },
     { id: 'partNumber', label: 'Part Number', width: 5 },
     {
       id: 'partDescriptionTruncated',
@@ -402,6 +440,11 @@ function JobsList() {
       label: 'Total',
       width: 5,
       format: (value) => `$${value}`,
+    },
+    {
+      id: 'note',
+      label: 'Latest Note',
+      width: 200,
     },
   ];
 
@@ -448,12 +491,17 @@ function JobsList() {
             return (
               scheduledDateList.get(job.jobNumber)?.includes(value) ||
               googleDateList.get(job.jobNumber)?.includes(value) ||
-              salesIdList
+              orderMap
                 .get(job.orderNumber)
                 ?.salesId.includes(value.toUpperCase()) ||
-              salesIdList
+              orderMap
                 .get(job.orderNumber)
-                ?.customerDescription.includes(value.toUpperCase()) ||
+                ?.customerDescription.toLowerCase()
+                .includes(value.toLocaleLowerCase()) ||
+              orderMap
+                .get(job.orderNumber)
+                ?.location.toLowerCase()
+                .includes(value.toLowerCase()) ||
               // job.dueDateString?.toLowerCase().includes(value.toLowerCase()) || //can't actually search this string need to format it //OR DO WE NEED TO SEARCH THE data instead of the jobslist?
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
@@ -468,7 +516,7 @@ function JobsList() {
       }
       setPage(0);
     },
-    [googleDateList, jobsList, salesIdList, scheduledDateList]
+    [googleDateList, jobsList, orderMap, scheduledDateList]
   );
 
   const exportToExcel = () => {
@@ -632,7 +680,7 @@ function JobsList() {
         PaperProps={{ sx: { width: '95%' } }}
         onClose={toggleDrawer}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 1 }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', margin: 2 }}>
           <IconButton
             onClick={toggleDrawer(false)}
             style={{ position: 'absolute', top: '0', right: '0' }}
