@@ -14,7 +14,9 @@ import {
   Card,
   CardContent,
   Typography,
+  Divider,
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useRecoilValue } from 'recoil';
 import { ec2TokenState, credentialState } from '../../atoms/auth';
 import {
@@ -27,6 +29,7 @@ import {
   collection,
   orderBy,
   query,
+  deleteDoc,
 } from 'firebase/firestore';
 import { firebaseAuth, db } from '../../service/firebase';
 import {
@@ -40,6 +43,7 @@ import { FirebaseEvent, FirebaseNote } from '../../interfaces/FirebaseModels';
 import Event from '../Event/Event';
 import dayjs from 'dayjs';
 import NoteModal from '../NoteModal/NoteModal';
+import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 
 interface Props {
   orderItem: Data;
@@ -65,6 +69,8 @@ function Calendar({ orderItem }: Props) {
   const { getCalendarList, getCalendarListResponse, getCalendarListError } =
     useGetCalendarList();
   const [notesOpen, setNotesOpen] = useState<boolean>(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<FirebaseNote>();
 
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
@@ -463,6 +469,31 @@ function Calendar({ orderItem }: Props) {
     }
   }, [eventEditMode]);
 
+  const handleDeleteClick = useCallback((note: FirebaseNote) => {
+    setSelectedNote(note);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const handleDeleteNote = useCallback(async () => {
+    if (selectedNote) {
+      try {
+        await deleteDoc(
+          doc(db, 'jobs', orderItem.jobNumber, 'notes', selectedNote.id)
+        );
+      } catch (e) {
+        console.log('error deleting firebase note ', e);
+      }
+      setAlertText('Note deleted');
+      setAlertOpen(true);
+      setSelectedNote(undefined);
+      lookupFirebaseNotes();
+    } else {
+      setAlertText('Error deleting note');
+      setAlertOpen(true);
+    }
+    setDeleteConfirmOpen(false);
+  }, [lookupFirebaseNotes, orderItem.jobNumber, selectedNote]);
+
   return (
     <>
       <Grid container spacing={2}>
@@ -681,14 +712,28 @@ function Calendar({ orderItem }: Props) {
               ))}
           </Grid>
         </Grid>
-        <Grid container item xs={9} direction="column" rowGap={1}>
+        <Grid container item xs={11} direction="column" rowGap={1}>
           {notes &&
             notes.map((note: FirebaseNote, idx: number) => (
-              <Grid spacing={0} direction="row" columnGap={1}>
-                <Typography>
-                  {note.text} - {note.addedBy}
-                </Typography>
-              </Grid>
+              <>
+                <Grid container spacing={1} direction="row" columnGap={1}>
+                  {/* <Grid item xs={11}> */}
+                  <Button
+                    variant="text"
+                    startIcon={<DeleteIcon />}
+                    onClick={() => handleDeleteClick(note)}
+                  ></Button>
+                  <Typography ml={1}>
+                    {note.text} - {dayjs(note.addedDate).format('MM/DD/YYYY')} -{' '}
+                    {note.addedBy}
+                  </Typography>
+                  {/* </Grid> */}
+                  {/* <Grid item xs={1}> */}
+
+                  {/* </Grid> */}
+                </Grid>
+                <Divider />
+              </>
             ))}
         </Grid>
       </Grid>
@@ -700,9 +745,19 @@ function Calendar({ orderItem }: Props) {
           </Button>
         </DialogActions>
       </Dialog>
+      <ConfirmationModal
+        open={deleteConfirmOpen}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => handleDeleteNote()}
+        title={'Confirm Delete'}
+        message={'Do you really want to delete this event?'}
+      />
       <NoteModal
         open={notesOpen}
-        onClose={() => setNotesOpen(false)}
+        onClose={() => {
+          lookupFirebaseNotes();
+          setNotesOpen(false);
+        }}
         jobNumber={orderItem.jobNumber}
       ></NoteModal>
     </>
