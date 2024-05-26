@@ -18,3 +18,14 @@ export interface FirebaseNote {
   status: string;
   text: string;
 }
+
+export interface FirebaseSettings {
+  salesID: boolean;
+  dateEntered: boolean;
+  orderNumber: boolean;
+  jobNumber: boolean;
+  partNumber: boolean;
+  customerDescription: boolean;
+  location: boolean;
+  addressBox: boolean;
+}

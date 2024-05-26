@@ -31,7 +31,7 @@ import {
   query,
   deleteDoc,
 } from 'firebase/firestore';
-import { firebaseAuth, db } from '../../service/firebase';
+import { db, firebaseAuth } from '../../service/firebase';
 import {
   Data,
   Routing,
@@ -39,7 +39,11 @@ import {
   Order,
 } from '../../interfaces/VendorModels';
 import { GoogCal } from '../../interfaces/GoogleModels';
-import { FirebaseEvent, FirebaseNote } from '../../interfaces/FirebaseModels';
+import {
+  FirebaseEvent,
+  FirebaseNote,
+  FirebaseSettings,
+} from '../../interfaces/FirebaseModels';
 import Event from '../Event/Event';
 import dayjs from 'dayjs';
 import NoteModal from '../NoteModal/NoteModal';
@@ -87,17 +91,39 @@ function Calendar({ orderItem }: Props) {
     dateEntered: false,
     orderNumber: false,
     jobNumber: true,
-    partNumber: false,
-    customerDescription: false,
-    location: true,
+    partNumber: true,
+    customerDescription: true,
+    location: false,
     addressBox: true,
-    routingBox: false,
   });
-  const handleChecked = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChecked = async (event: React.ChangeEvent<HTMLInputElement>) => {
     setCheckboxState({
       ...checkboxState,
       [event.target.name]: event.target.checked,
     });
+    console.log(
+      'save checkbox state ',
+      checkboxState,
+      ' ',
+      [event.target.name],
+      ' ',
+      event.target.checked
+    );
+    const checkboxSettings: FirebaseSettings = {
+      ...checkboxState,
+      [event.target.name]: event.target.checked,
+    };
+    console.log('SAVE THESE, ', checkboxSettings);
+    try {
+      await setDoc(
+        doc(db, 'jobs', orderItem.jobNumber, 'settings', 'checkboxes'),
+        {
+          checkboxSettings,
+        }
+      ).then();
+    } catch (e) {
+      console.log('failure saving settings', e);
+    }
   };
 
   const {
@@ -276,11 +302,40 @@ function Calendar({ orderItem }: Props) {
     }
   }, [orderItem.jobNumber]);
 
+  const lookupFirebaseOrderSettings = useCallback(async () => {
+    // const jobRef = doc(db, 'jobs', orderItem.jobNumber);
+    try {
+      // const settings: FirebaseSettings;
+      const settingSnapshot = await getDoc(
+        doc(db, 'jobs', orderItem.jobNumber, 'settings', 'checkboxes')
+      );
+      if (settingSnapshot.exists()) {
+        console.log('do we have some settings', settingSnapshot.data());
+        const settings = settingSnapshot.data();
+        // settingSnapshot.``
+        console.log('do we have some settings', settings);
+        setCheckboxState({
+          salesID: settings.salesID,
+          dateEntered: settings.dateEntered,
+          orderNumber: settings.orderNumber,
+          jobNumber: settings.jobNumber,
+          partNumber: settings.partNumber,
+          customerDescription: settings.customerDescription,
+          location: settings.location,
+          addressBox: settings.addressBox,
+        });
+      }
+    } catch (e) {
+      console.log('error getting settings snapshot ', e);
+    }
+  }, [orderItem.jobNumber]);
+
   useEffect(() => {
     if (order) {
       lookupFirebaseNotes();
+      lookupFirebaseOrderSettings();
     }
-  }, [order, ec2token, lookupFirebaseNotes]);
+  }, [order, ec2token, lookupFirebaseNotes, lookupFirebaseOrderSettings]);
 
   const addEvent = useCallback(
     async (firstEvent: boolean, event?: FirebaseEvent) => {

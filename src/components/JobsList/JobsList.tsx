@@ -39,32 +39,44 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+// import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 function JobsList() {
-  const auth = getAuth();
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      console.log('USER IN JOBS LIST', user);
-      console.log('AUTH IN JOBS LIST', auth);
-      // ...
-    } else {
-      console.log('SIGNED OUT USER IN JOBS LIST', user);
-      console.log('SIGNED OUT AUTH IN JOBS LIST', auth);
-    }
-  });
+  // const auth = getAuth();
+  // onAuthStateChanged(auth, (user) => {
+  //   if (user) {
+  //     console.log('USER IN JOBS LIST', user);
+  //     console.log('AUTH IN JOBS LIST', auth);
+  //     // ...
+  //   } else {
+  //     console.log('SIGNED OUT USER IN JOBS LIST', user);
+  //     console.log('SIGNED OUT AUTH IN JOBS LIST', auth);
+  //   }
+  // });
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
   const user = useRecoilValue(userState);
   const [reportType, setReportType] = useState('nonADA');
   const [skipRows, setSkiprows] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
-  const [scheduledDateList, setScheduledDateList] = useState(
-    new Map<string, string>()
+  const [searchVal, setSearchVal] = useState<string>('');
+  const [masterDateList, setMasterDateList] = useState(
+    new Map<
+      string,
+      {
+        firstEventStoredDate: string;
+        firstEventGoogleDate: string;
+        lastEventStoredDate: string;
+        lastEventGoogleDate: string;
+      }
+    >()
   );
-  const [googleDateList, setGoogleDateList] = useState(
-    new Map<string, string>()
-  );
+  // const [scheduledDateList, setScheduledDateList] = useState(
+  //   new Map<string, string>()
+  // );
+  // const [googleDateList, setGoogleDateList] = useState(
+  //   new Map<string, string>()
+  // );
   // const [firebaseStartDateMap, setFirebaseStartDateMap] = useState(
   //   new Map<string, string>()
   // );
@@ -82,6 +94,7 @@ function JobsList() {
       }
     >()
   );
+  const [notesMap, setNotesMap] = useState(new Map<string, string>());
   const [jobsList, setJobslist] = useState<Data[]>();
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
   const [data, setData] = useState<Data[]>();
@@ -116,40 +129,194 @@ function JobsList() {
     setPage(0);
   };
 
-  const getScheduledDate = async (jobNumber: string) => {
-    console.log('getting scheduled date for ', jobNumber);
-    let updatedDueDate = '';
+  const getLatestNote = async (jobNumber: string) => {
+    console.log('getting latest note or something');
     try {
-      const eventSnapshot = await getDocsFromServer(
+      const noteSnapshot = await getDocsFromServer(
         query(
-          collection(db, 'jobs', jobNumber, 'events'),
-          orderBy('addedDate'),
+          collection(db, 'jobs', jobNumber, 'notes'),
+          orderBy('addedDate', 'desc'),
           limit(1)
         )
       );
-      if (!eventSnapshot.empty) {
-        eventSnapshot.forEach((doc) => {
-          updatedDueDate = doc.exists()
-            ? new Date(doc.data().updatedDueDate).toLocaleDateString('en-US', {
-                month: '2-digit',
-                day: '2-digit',
-                year: 'numeric',
-              })
-            : '';
-          setScheduledDateList((old) => {
+      if (!noteSnapshot.empty) {
+        noteSnapshot.forEach((note) => {
+          setNotesMap((old) => {
             var newmap = new Map(old);
-            newmap.set(jobNumber, updatedDueDate);
+            newmap.set(jobNumber, note.exists() ? note.data().text : '');
             return newmap;
           });
-          console.log('set scheduled date list ', scheduledDateList);
-          if (doc.exists() && doc.data().calendar && doc.data().eventId) {
-            getGoogleDate(doc.data().calendar, doc.data().eventId, jobNumber);
-          }
         });
       }
     } catch {
-      console.log('error looking up due date');
+      console.log('error in getting notes');
     }
+  };
+
+  // const getScheduledDate = async (jobNumber: string) => {
+  //   console.log('getting scheduled date for ', jobNumber);
+  //   let updatedDueDate = '';
+  //   try {
+  //     const eventSnapshot = await getDocsFromServer(
+  //       query(
+  //         collection(db, 'jobs', jobNumber, 'events'),
+  //         orderBy('addedDate'),
+  //         limit(1)
+  //       )
+  //     );
+  //     if (!eventSnapshot.empty) {
+  //       eventSnapshot.forEach((doc) => {
+  //         updatedDueDate = doc.exists()
+  //           ? new Date(doc.data().updatedDueDate).toLocaleDateString('en-US', {
+  //               month: '2-digit',
+  //               day: '2-digit',
+  //               year: 'numeric',
+  //             })
+  //           : '';
+  //         setScheduledDateList((old) => {
+  //           var newmap = new Map(old);
+  //           newmap.set(jobNumber, updatedDueDate);
+  //           return newmap;
+  //         });
+  //         console.log('set scheduled date list ', scheduledDateList);
+  //         if (doc.exists() && doc.data().calendar && doc.data().eventId) {
+  //           getGoogleDate(doc.data().calendar, doc.data().eventId, jobNumber);
+  //         }
+  //       });
+  //     }
+  //   } catch {
+  //     console.log('error looking up due date');
+  //   }
+  // };
+
+  const getUpdatedDates = async (jobNumber: string) => {
+    let dateObject = {
+      firstEventStoredDate: '',
+      firstEventGoogleDate: '',
+      lastEventStoredDate: '',
+      lastEventGoogleDate: '',
+    };
+    console.log('try looking up this jobs events for dates : ', jobNumber);
+    try {
+      const eventsSnapshot = await getDocsFromServer(
+        query(
+          collection(db, 'jobs', jobNumber, 'events'),
+          orderBy('updatedDueDate')
+        )
+      );
+      console.log('events snapshot ', jobNumber, ' ', eventsSnapshot);
+      console.log('events snapshot ', jobNumber, ' ', eventsSnapshot.docs);
+      if (!eventsSnapshot.empty) {
+        if (eventsSnapshot.docs[0].exists()) {
+          console.log('it exists');
+          let startDate = new Date(
+            eventsSnapshot.docs[0].data().updatedDueDate
+          ).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          });
+          console.log('startDate', startDate);
+          dateObject.firstEventStoredDate = startDate;
+          if (
+            eventsSnapshot.docs[0].data().calendar &&
+            eventsSnapshot.docs[0].data().eventId
+          ) {
+            const fegd = await getGoogleDate(
+              eventsSnapshot.docs[0].data().calendar,
+              eventsSnapshot.docs[0].data().eventId,
+              jobNumber
+            );
+            dateObject.firstEventGoogleDate = fegd;
+          }
+        }
+        if (eventsSnapshot.size > 1) {
+          const lastIndex = eventsSnapshot.size - 1;
+          if (eventsSnapshot.docs[lastIndex].exists()) {
+            dateObject.lastEventStoredDate = new Date(
+              eventsSnapshot.docs[lastIndex].data().updatedDueDate
+            ).toLocaleDateString('en-US', {
+              month: '2-digit',
+              day: '2-digit',
+              year: 'numeric',
+            });
+          }
+          if (
+            eventsSnapshot.docs[lastIndex].data().calendar &&
+            eventsSnapshot.docs[lastIndex].data().eventId
+          ) {
+            dateObject.lastEventGoogleDate = await getGoogleDate(
+              eventsSnapshot.docs[lastIndex].data().calendar,
+              eventsSnapshot.docs[lastIndex].data().eventId,
+              jobNumber
+            );
+          }
+        } else {
+          dateObject.lastEventGoogleDate = dateObject.firstEventGoogleDate;
+        }
+      }
+      console.log('date object', dateObject);
+      //TODO don't bother setting this if we got no dates
+      setMasterDateList((old) => {
+        var newmap = new Map(old);
+        newmap.set(jobNumber, dateObject);
+        return newmap;
+      });
+    } catch {
+      console.log('unable to lookup dates for ', jobNumber);
+    }
+  };
+
+  const getGoogleDate = async (
+    calendar: string,
+    eventId: string,
+    jobNumber: string
+  ): Promise<string> => {
+    let accessToken;
+    //TODO try usin gthis a few lines below in the auth token to google api
+    await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
+      accessToken = result.token;
+    });
+    const getCalendarEventURL =
+      'https://www.googleapis.com/calendar/v3/calendars/' +
+      calendar +
+      '/events/' +
+      eventId;
+    const fetchOpts = {
+      headers: {
+        accept: 'application/json',
+        Authorization: 'Bearer ' + credential?.accessToken,
+      },
+    };
+    let date;
+    await fetch(getCalendarEventURL, fetchOpts).then(async (response) => {
+      try {
+        const json = await response.json();
+        if (!json.error && json.status !== 'cancelled') {
+          date = new Date(json.start.dateTime).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+          });
+          // setGoogleDateList((old) => {
+          //   let newMap = new Map(old);
+          //   let gDate = new Date(json.start.dateTime).toLocaleDateString(
+          //     'en-US',
+          //     { month: '2-digit', day: '2-digit', year: 'numeric' }
+          //   );
+          //   newMap.set(jobNumber, gDate);
+          //   return newMap;
+          // });
+        } else {
+          console.log('nothing to return');
+          return '';
+        }
+      } catch (e) {
+        console.log('error getting a calendar ', e);
+        return '';
+      }
+    });
+    return date || '';
   };
 
   const getSalesId = async (orderNumber: string) => {
@@ -188,49 +355,50 @@ function JobsList() {
     }
   };
 
-  const getGoogleDate = async (
-    calendar: string,
-    eventId: string,
-    jobNumber: string
-  ) => {
-    let accessToken;
-    await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
-      accessToken = result.token;
-      console.log('what is this other at ', accessToken);
-    });
-    const getCalendarEventURL =
-      'https://www.googleapis.com/calendar/v3/calendars/' +
-      calendar +
-      '/events/' +
-      eventId;
-    const fetchOpts = {
-      headers: {
-        accept: 'application/json',
-        Authorization: 'Bearer ' + credential?.accessToken,
-      },
-    };
-    await fetch(getCalendarEventURL, fetchOpts).then(async (response) => {
-      try {
-        const json = await response.json();
-        if (!json.error && json.state !== 'cancelled') {
-          setGoogleDateList((old) => {
-            let newMap = new Map(old);
-            let gDate = new Date(json.start.dateTime).toLocaleDateString(
-              'en-US',
-              { month: '2-digit', day: '2-digit', year: 'numeric' }
-            );
-            newMap.set(jobNumber, gDate);
-            return newMap;
-          });
-        }
-      } catch (e) {
-        console.log('error getting a calendar ', e);
-      }
-    });
-  };
+  // const getGoogleDate = async (
+  //   calendar: string,
+  //   eventId: string,
+  //   jobNumber: string
+  // ) => {
+  //   let accessToken;
+  //   await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
+  //     accessToken = result.token;
+  //     console.log('what is this other at ', accessToken);
+  //   });
+  //   const getCalendarEventURL =
+  //     'https://www.googleapis.com/calendar/v3/calendars/' +
+  //     calendar +
+  //     '/events/' +
+  //     eventId;
+  //   const fetchOpts = {
+  //     headers: {
+  //       accept: 'application/json',
+  //       Authorization: 'Bearer ' + credential?.accessToken,
+  //     },
+  //   };
+  //   await fetch(getCalendarEventURL, fetchOpts).then(async (response) => {
+  //     try {
+  //       const json = await response.json();
+  //       if (!json.error && json.state !== 'cancelled') {
+  //         setGoogleDateList((old) => {
+  //           let newMap = new Map(old);
+  //           let gDate = new Date(json.start.dateTime).toLocaleDateString(
+  //             'en-US',
+  //             { month: '2-digit', day: '2-digit', year: 'numeric' }
+  //           );
+  //           newMap.set(jobNumber, gDate);
+  //           return newMap;
+  //         });
+  //       }
+  //     } catch (e) {
+  //       console.log('error getting a calendar ', e);
+  //     }
+  //   });
+  // };
 
   const handleGetJobs = async () => {
     setLoading(true);
+    setSearchVal('');
     let datalist: Data[] = [];
     let fetchMore = true;
     let fetchError = false;
@@ -263,8 +431,10 @@ function JobsList() {
           if (json) {
             setSkiprows(skipRows + json.Data.length);
             json.Data.forEach(async (data: Data) => {
-              getScheduledDate(data.jobNumber);
+              // getScheduledDate(data.jobNumber);
+              getUpdatedDates(data.jobNumber);
               getSalesId(data.orderNumber);
+              getLatestNote(data.jobNumber);
               data.rowNum = row;
               datalist.push(data);
               row++;
@@ -298,15 +468,17 @@ function JobsList() {
       | 'unitPrice'
       | 'quantityOrdered'
       | 'uniqueID'
-      | 'dueDateString'
+      // | 'dueDateString'
       | 'partDescriptionTruncated'
-      | 'updatedDueDate'
-      | 'googleStartDate'
+      // | 'updatedDueDate'
+      // | 'googleStartDate'
       | 'salesID'
       | 'customerDescription'
       | 'location'
       | 'dateEntered'
-      | 'note';
+      | 'note'
+      | 'startDate'
+      | 'endDate';
     label: string;
     width: number;
     align?: 'right';
@@ -330,8 +502,10 @@ function JobsList() {
     orderTotal: number;
     dueDateString: string;
     partDescriptionTruncated: string;
-    updatedDueDate: string;
-    googleStartDate: string;
+    startDate: string;
+    endDate: string;
+    // updatedDueDate: string;
+    // googleStartDate: string;
     salesID: string;
     customerDescription: string;
     location: string;
@@ -339,20 +513,41 @@ function JobsList() {
     note: string;
   }
 
-  const retrieveStateDate = useCallback(
+  // const retrieveStateDate = useCallback(
+  //   (jobNumber: string) => {
+  //     return scheduledDateList.has(jobNumber)
+  //       ? scheduledDateList.get(jobNumber)
+  //       : '';
+  //   },
+  //   [scheduledDateList]
+  // );
+
+  // const retrieveStateGoogleDate = useCallback(
+  //   (jobNumber: string) => {
+  //     return googleDateList.has(jobNumber) ? googleDateList.get(jobNumber) : '';
+  //   },
+  //   [googleDateList]
+  // );
+
+  const retrieveStateMasterDate = useCallback(
     (jobNumber: string) => {
-      return scheduledDateList.has(jobNumber)
-        ? scheduledDateList.get(jobNumber)
-        : '';
+      return masterDateList.has(jobNumber)
+        ? masterDateList.get(jobNumber)
+        : {
+            firstEventGoogleDate: '',
+            firstEventStoredDate: '',
+            lastEventGoogleDate: '',
+            lastEventStoredDate: '',
+          };
     },
-    [scheduledDateList]
+    [masterDateList]
   );
 
-  const retrieveStateGoogleDate = useCallback(
+  const retrieveStateNote = useCallback(
     (jobNumber: string) => {
-      return googleDateList.has(jobNumber) ? googleDateList.get(jobNumber) : '';
+      return notesMap.has(jobNumber) ? notesMap.get(jobNumber) : '';
     },
-    [googleDateList]
+    [notesMap]
   );
 
   const retrieveStateSalesID = useCallback(
@@ -393,14 +588,18 @@ function JobsList() {
           data.partDescription?.length > 100
             ? data.partDescription?.substring(0, 100) + ' ...'
             : data.partDescription,
-        updatedDueDate: retrieveStateDate(data.jobNumber) || '',
-        googleStartDate: retrieveStateGoogleDate(data.jobNumber) || '',
+        // updatedDueDate: retrieveStateDate(data.jobNumber) || '',
+        // googleStartDate: retrieveStateGoogleDate(data.jobNumber) || '',
+        startDate:
+          retrieveStateMasterDate(data.jobNumber)?.firstEventGoogleDate || '',
+        endDate:
+          retrieveStateMasterDate(data.jobNumber)?.lastEventGoogleDate || '',
         salesID: retrieveStateSalesID(data.orderNumber)?.salesId || '',
         customerDescription:
           retrieveStateSalesID(data.orderNumber)?.customerDescription || '',
         location: retrieveStateSalesID(data.orderNumber)?.location || '',
         dateEntered: retrieveStateSalesID(data.orderNumber)?.dateEntered || '',
-        note: '',
+        note: retrieveStateNote(data.jobNumber) || '',
       };
     }
     if (filteredJobsList) {
@@ -408,13 +607,20 @@ function JobsList() {
       filteredJobsList.forEach((job) => {
         newData.push(createData(job));
       });
+      newData.sort((a, b) => {
+        const aVal =
+          a.startDate.length > 0 ? new Date(a.startDate).getTime() : 0;
+        const bVal =
+          b.startDate.length > 0 ? new Date(b.startDate).getTime() : 0;
+        return aVal - bVal;
+      });
       setData(newData);
     }
     setLoading(false);
   }, [
     filteredJobsList,
-    retrieveStateDate,
-    retrieveStateGoogleDate,
+    retrieveStateMasterDate,
+    retrieveStateNote,
     retrieveStateSalesID,
   ]);
 
@@ -422,9 +628,11 @@ function JobsList() {
     { id: 'rowNum', label: 'Row', width: 5 },
     { id: 'salesID', label: 'SalesID', width: 5 },
     { id: 'dateEntered', label: 'Entered', width: 7 },
-    { id: 'dueDateString', label: 'ECI Due', width: 10 },
-    { id: 'updatedDueDate', label: 'Updated Due', width: 10 },
-    { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
+    // { id: 'dueDateString', label: 'ECI Due', width: 10 },
+    // { id: 'updatedDueDate', label: 'Updated Due', width: 10 },
+    // { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
+    { id: 'startDate', label: 'Start Date', width: 20 },
+    { id: 'endDate', label: 'Due Date', width: 20 },
     { id: 'orderNumber', label: 'Order', width: 5 },
     { id: 'jobNumber', label: 'Job', width: 15 },
     { id: 'customerDescription', label: 'Customer', width: 40 },
@@ -489,8 +697,8 @@ function JobsList() {
         setFilteredJobslist(
           jobsList?.filter((job) => {
             return (
-              scheduledDateList.get(job.jobNumber)?.includes(value) ||
-              googleDateList.get(job.jobNumber)?.includes(value) ||
+              // scheduledDateList.get(job.jobNumber)?.includes(value) ||
+              // googleDateList.get(job.jobNumber)?.includes(value) ||
               orderMap
                 .get(job.orderNumber)
                 ?.salesId.includes(value.toUpperCase()) ||
@@ -516,7 +724,7 @@ function JobsList() {
       }
       setPage(0);
     },
-    [googleDateList, jobsList, orderMap, scheduledDateList]
+    [jobsList, orderMap]
   );
 
   const exportToExcel = () => {
@@ -540,7 +748,7 @@ function JobsList() {
           day: '2-digit',
           year: 'numeric',
         });
-      saveAs(blob);
+      saveAs(blob, fileName);
     }
   };
 
@@ -583,7 +791,9 @@ function JobsList() {
                 label="Search"
                 size="medium"
                 type="search"
+                value={searchVal}
                 onChange={(event) => {
+                  setSearchVal(event.target.value);
                   searchJobs(event.target.value);
                 }}
               />

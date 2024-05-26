@@ -216,15 +216,11 @@ function Event({
       .then((json) => {
         const eventRef = doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id);
         try {
-          console.log(
-            'trying to update calendar in move function using updatedoc'
-          );
           updateDoc(eventRef, {
             calendar: selectedCalendar,
           }).then(() => {
             console.log('moved on firebase');
           });
-          console.log('setcalendar id', selectedCalendar);
           setCalendarId(selectedCalendar);
         } catch (e) {
           console.log('failed moving on firebase', e);
