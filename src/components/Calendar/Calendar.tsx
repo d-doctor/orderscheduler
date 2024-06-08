@@ -311,7 +311,7 @@ function Calendar({ orderItem }: Props) {
       );
       if (settingSnapshot.exists()) {
         console.log('do we have some settings', settingSnapshot.data());
-        const settings = settingSnapshot.data();
+        const settings = settingSnapshot.data().checkboxSettings;
         // settingSnapshot.``
         console.log('do we have some settings', settings);
         setCheckboxState({

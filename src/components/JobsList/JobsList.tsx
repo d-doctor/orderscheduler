@@ -130,7 +130,6 @@ function JobsList() {
   };
 
   const getLatestNote = async (jobNumber: string) => {
-    console.log('getting latest note or something');
     try {
       const noteSnapshot = await getDocsFromServer(
         query(
@@ -196,7 +195,6 @@ function JobsList() {
       lastEventStoredDate: '',
       lastEventGoogleDate: '',
     };
-    console.log('try looking up this jobs events for dates : ', jobNumber);
     try {
       const eventsSnapshot = await getDocsFromServer(
         query(
@@ -204,11 +202,9 @@ function JobsList() {
           orderBy('updatedDueDate')
         )
       );
-      console.log('events snapshot ', jobNumber, ' ', eventsSnapshot);
-      console.log('events snapshot ', jobNumber, ' ', eventsSnapshot.docs);
       if (!eventsSnapshot.empty) {
         if (eventsSnapshot.docs[0].exists()) {
-          console.log('it exists');
+          // console.log('it exists');
           let startDate = new Date(
             eventsSnapshot.docs[0].data().updatedDueDate
           ).toLocaleDateString('en-US', {
@@ -216,7 +212,7 @@ function JobsList() {
             day: '2-digit',
             year: 'numeric',
           });
-          console.log('startDate', startDate);
+          // console.log('startDate', startDate);
           dateObject.firstEventStoredDate = startDate;
           if (
             eventsSnapshot.docs[0].data().calendar &&
@@ -255,7 +251,7 @@ function JobsList() {
           dateObject.lastEventGoogleDate = dateObject.firstEventGoogleDate;
         }
       }
-      console.log('date object', dateObject);
+      // console.log('date object', dateObject);
       //TODO don't bother setting this if we got no dates
       setMasterDateList((old) => {
         var newmap = new Map(old);
@@ -625,7 +621,7 @@ function JobsList() {
   ]);
 
   const columns: readonly Column[] = [
-    { id: 'rowNum', label: 'Row', width: 5 },
+    // { id: 'rowNum', label: 'Row', width: 5 },
     { id: 'salesID', label: 'SalesID', width: 5 },
     { id: 'dateEntered', label: 'Entered', width: 7 },
     // { id: 'dueDateString', label: 'ECI Due', width: 10 },
@@ -642,6 +638,11 @@ function JobsList() {
       id: 'partDescriptionTruncated',
       label: 'Part Description',
       width: 200,
+    },
+    {
+      id: 'quantityOrdered',
+      label: 'Quantity',
+      width: 5,
     },
     {
       id: 'orderTotal',

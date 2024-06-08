@@ -29,3 +29,11 @@ export interface FirebaseSettings {
   location: boolean;
   addressBox: boolean;
 }
+
+export interface FirebaseActivity {
+  user: string;
+  action: string;
+  text: string;
+  jobNumber: string;
+  addedDate: Date;
+}

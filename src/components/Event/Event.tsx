@@ -36,6 +36,7 @@ import { amber, blue, green, red } from '@mui/material/colors';
 import { db } from '../../service/firebase';
 import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
 import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
+import { writeActivityLog } from '../../util/writeActivityLog';
 
 interface Props {
   routings?: Routing[];
@@ -94,8 +95,8 @@ function Event({
   const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
-  const [unsavedChanges, setUnsavedChange] = useState<boolean>(false);
-  const [saveInProgress, setSaveInProgress] = useState<boolean>(false);
+  // const [unsavedChanges, setUnsavedChange] = useState<boolean>(false);
+  // const [saveInProgress, setSaveInProgress] = useState<boolean>(false);
 
   const {
     getCalendarEvent,
@@ -189,6 +190,7 @@ function Event({
         console.log('caught error scheduling');
       });
     sendEventToFirebase(eventId, htmlLink);
+    // writeActivityLog('')
   };
 
   const moveCalendarEvent = async () => {
@@ -306,7 +308,18 @@ function Event({
         await moveCalendarEvent();
       }
       //TODO only update it if there wasn't a failure from the move above
-      console.log('now update it, ', eventId);
+      const updateString =
+        'Updated Event ' +
+        firebaseEvent.calendar +
+        ', start time ' +
+        new Date(firebaseEvent.updatedDueDate).toLocaleTimeString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      writeActivityLog('Updated Event', updateString, jobNumber);
       updateCalendarEvent();
     } else {
       console.log('add new to goog cal');
@@ -320,8 +333,29 @@ function Event({
       await deleteCalendarEvent();
     }
     deleteFirebaseEvent();
+    const deleteString =
+      'Event from job ' +
+      jobNumber +
+      ' was deleted from calendar ' +
+      firebaseEvent.calendar +
+      ', start time ' +
+      new Date(firebaseEvent.updatedDueDate).toLocaleTimeString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    writeActivityLog('Deleted Event', deleteString, jobNumber);
     setDeleteConfirmOpen(false);
-  }, [deleteCalendarEvent, deleteFirebaseEvent, foundOnGoogle]);
+  }, [
+    deleteCalendarEvent,
+    deleteFirebaseEvent,
+    firebaseEvent.calendar,
+    firebaseEvent.updatedDueDate,
+    foundOnGoogle,
+    jobNumber,
+  ]);
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
     setSelectedRouting(event.target.value);
