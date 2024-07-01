@@ -101,19 +101,10 @@ function Calendar({ orderItem }: Props) {
       ...checkboxState,
       [event.target.name]: event.target.checked,
     });
-    console.log(
-      'save checkbox state ',
-      checkboxState,
-      ' ',
-      [event.target.name],
-      ' ',
-      event.target.checked
-    );
     const checkboxSettings: FirebaseSettings = {
       ...checkboxState,
       [event.target.name]: event.target.checked,
     };
-    console.log('SAVE THESE, ', checkboxSettings);
     try {
       await setDoc(
         doc(db, 'jobs', orderItem.jobNumber, 'settings', 'checkboxes'),
@@ -140,6 +131,52 @@ function Calendar({ orderItem }: Props) {
   const handleAddEvent = () => {
     setButtonDisabled(true);
     addEvent(false);
+    setButtonDisabled(false);
+  };
+
+  const handleAddAllEvents = () => {
+    setButtonDisabled(true);
+    routings?.forEach(async (routing) => {
+      let duration = '';
+      if (routing.cycleTime < 2) {
+        duration = '1';
+      } else if (routing.cycleTime < 3) {
+        duration = '2';
+      } else if (routing.cycleTime < 4) {
+        duration = '3';
+      } else if (routing.cycleTime < 5) {
+        duration = '4';
+      } else if (routing.cycleTime < 6) {
+        duration = '5';
+      } else if (routing.cycleTime < 7) {
+        duration = '6';
+      } else if (routing.cycleTime < 8) {
+        duration = '7';
+      } else if (routing.cycleTime < 9) {
+        duration = '8';
+      } else if (routing.cycleTime <= 10) {
+        duration = '9';
+      } else if (routing.cycleTime <= 11) {
+        duration = '10';
+      } else if (routing.cycleTime <= 12) {
+        duration = '11';
+      } else {
+        duration = '12';
+      }
+      console.log('add one for this routing', routing);
+      addEvent(false, {
+        id: '',
+        calendar: '',
+        eventId: '',
+        htmlLink: '',
+        routing: routing.workCenter,
+        updatedDueDate: '',
+        description: orderItem.partDescription,
+        title: '',
+        addedDate: dayjs().toISOString(),
+        duration: duration,
+      });
+    });
     setButtonDisabled(false);
   };
 
@@ -275,7 +312,6 @@ function Calendar({ orderItem }: Props) {
   }, [orderItem.jobNumber]);
 
   const lookupFirebaseNotes = useCallback(() => {
-    // const jobRef = doc(db, 'jobs', orderItem.jobNumber);
     try {
       const notes: FirebaseNote[] = [];
       const notesSnapshot = getDocs(
@@ -303,7 +339,6 @@ function Calendar({ orderItem }: Props) {
   }, [orderItem.jobNumber]);
 
   const lookupFirebaseOrderSettings = useCallback(async () => {
-    // const jobRef = doc(db, 'jobs', orderItem.jobNumber);
     try {
       // const settings: FirebaseSettings;
       const settingSnapshot = await getDoc(
@@ -729,6 +764,15 @@ function Calendar({ orderItem }: Props) {
                 disabled={buttonDisabled}
               >
                 Add Note
+              </Button>
+              <Button
+                variant="contained"
+                size="medium"
+                className="addAllEventsButton"
+                onClick={handleAddAllEvents}
+                disabled={buttonDisabled || isEditMode()}
+              >
+                Prefill Events
               </Button>
               <Button
                 variant="contained"

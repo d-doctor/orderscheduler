@@ -668,6 +668,7 @@ function Event({
               <TextField
                 multiline
                 style={{ minWidth: 300 }}
+                maxRows={6}
                 size="small"
                 id="outlined-required"
                 label="Description"
