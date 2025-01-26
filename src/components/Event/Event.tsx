@@ -9,6 +9,7 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DoubleArrowIcon from '@mui/icons-material/DoubleArrow';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
 import {
   Button,
   Card,
@@ -263,6 +264,10 @@ function Event({
       });
     sendEventToFirebase(eId, htmlLink);
   };
+
+  const isCalendarUnavailable = useCallback(() => {
+    return calendars?.find((cal) => cal.id === selectedCalendar) === undefined;
+  }, [calendars, selectedCalendar]);
 
   const deleteCalendarEvent = useCallback(async () => {
     const calToDelete = calendarId ? calendarId : selectedCalendar;
@@ -566,7 +571,10 @@ function Event({
               alignItems="center"
               columnGap={1}
             >
-              <FormControl style={{ minWidth: 120 }}>
+              <FormControl
+                disabled={isCalendarUnavailable()}
+                style={{ minWidth: 120 }}
+              >
                 <InputLabel size="small" id="routingsLabel">
                   Routings
                 </InputLabel>
@@ -578,6 +586,7 @@ function Event({
                     id="selectedRouting"
                     onChange={handleRoutingChange}
                     label="Duration"
+                    disabled={isCalendarUnavailable()}
                   >
                     <MenuItem key="norouting" value="norouting">
                       None
@@ -597,11 +606,18 @@ function Event({
               </FormControl>
               <DateTimePicker
                 timeSteps={{ hours: 1, minutes: 15 }}
-                slotProps={{ textField: { size: 'small' } }}
+                slotProps={{
+                  textField: { size: 'small' },
+                  actionBar: { actions: ['today'] },
+                }}
                 value={dateValue}
+                disabled={isCalendarUnavailable()}
                 onChange={(newValue) => setDateValue(newValue || dayjs())}
               />
-              <FormControl style={{ minWidth: 120 }}>
+              <FormControl
+                disabled={isCalendarUnavailable()}
+                style={{ minWidth: 120 }}
+              >
                 <InputLabel id="duration-label">Duration</InputLabel>
                 <Select
                   value={duration}
@@ -626,7 +642,10 @@ function Event({
                 </Select>
               </FormControl>
               {calendars && calendars.length > 0 && (
-                <FormControl style={{ minWidth: 120 }}>
+                <FormControl
+                  disabled={isCalendarUnavailable()}
+                  style={{ minWidth: 120 }}
+                >
                   <InputLabel id="calendarLabel">Calendar</InputLabel>
                   <Select
                     value={selectedCalendar}
@@ -660,6 +679,7 @@ function Event({
                 size="small"
                 id="outlined-required"
                 label="Additional Title"
+                disabled={isCalendarUnavailable()}
                 value={title}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                   setTitle(event.target.value);
@@ -673,14 +693,26 @@ function Event({
                 id="outlined-required"
                 label="Description"
                 value={description}
+                disabled={isCalendarUnavailable()}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                   setDescription(event.target.value);
                 }}
               />
               {calendarId &&
                 calendarId.length > 0 &&
+                isCalendarUnavailable() && (
+                  <Tooltip title="Calendar Access not available">
+                    <DoNotDisturbOnIcon
+                      fontSize="large"
+                      sx={{ color: amber[500] }}
+                    ></DoNotDisturbOnIcon>
+                  </Tooltip>
+                )}
+              {calendarId &&
+                calendarId.length > 0 &&
                 eventId &&
                 eventId?.length > 0 &&
+                !isCalendarUnavailable() &&
                 !foundOnGoogle && (
                   <Tooltip title="Google Calendar Item was moved or deleted">
                     <WarningIcon
@@ -710,7 +742,9 @@ function Event({
                 )}
               <Button
                 disabled={
-                  !selectedCalendar || selectedCalendar === 'pickacalender'
+                  !selectedCalendar ||
+                  selectedCalendar === 'pickacalender' ||
+                  isCalendarUnavailable()
                 }
                 variant="contained"
                 size="medium"
