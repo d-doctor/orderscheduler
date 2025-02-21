@@ -9,6 +9,7 @@ export interface FirebaseEvent {
   duration: string;
   title: string;
   addedDate: string;
+  stepNumber: number;
 }
 
 export interface FirebaseNote {

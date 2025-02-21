@@ -15,6 +15,7 @@ import {
   CardContent,
   Typography,
   Divider,
+  duration,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useRecoilValue } from 'recoil';
@@ -75,6 +76,7 @@ function Calendar({ orderItem }: Props) {
   const [notesOpen, setNotesOpen] = useState<boolean>(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<FirebaseNote>();
+  // const [eventStartDates, setEventStartDates] = useState<>(undefined);
 
   const getOrderURLpt1 =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
@@ -86,6 +88,7 @@ function Calendar({ orderItem }: Props) {
   const getRoutingsURL =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?fields=stepNumber%2CdepartmentNumber%2Cdescription%2CemployeeCode%2CpartNumber%2CworkCenter%2CcycleTime&jobNumber=';
   // const [ checkedSalesID, setCheckedSalesID ] = React.useState<boolean>();
+  const getRoutingsURLSortClause = '&sort=stepNumber';
   const [checkboxState, setCheckboxState] = React.useState({
     salesID: false,
     dateEntered: false,
@@ -113,7 +116,7 @@ function Calendar({ orderItem }: Props) {
         }
       ).then();
     } catch (e) {
-      console.log('failure saving settings', e);
+      // console.log('failure saving settings', e);
     }
   };
 
@@ -175,6 +178,7 @@ function Calendar({ orderItem }: Props) {
         title: '',
         addedDate: dayjs().toISOString(),
         duration: duration,
+        stepNumber: routing.stepNumber,
       });
     });
     setButtonDisabled(false);
@@ -236,7 +240,8 @@ function Calendar({ orderItem }: Props) {
         console.log('need order item and token to get address');
       }
       if (orderItem && ec2token) {
-        let url = getRoutingsURL + orderItem.jobNumber;
+        let url =
+          getRoutingsURL + orderItem.jobNumber + getRoutingsURLSortClause;
         fetch(url, {
           headers: {
             accept: 'application/json',
@@ -244,7 +249,10 @@ function Calendar({ orderItem }: Props) {
           },
         })
           .then((response) => response.json())
-          .then((json) => setRoutings(json.Data))
+          .then((json) => {
+            console.log('routings : ', json);
+            setRoutings(json.Data);
+          })
           .catch((error) => console.error(error));
       }
     }
@@ -280,7 +288,7 @@ function Calendar({ orderItem }: Props) {
             )
           );
           eventsSnapshot.then((a) => {
-            const events: FirebaseEvent[] = [];
+            let events = new Array<FirebaseEvent>();
             const editMode: boolean[] = [];
             a.forEach((doc) => {
               editMode.push(false);
@@ -296,9 +304,15 @@ function Calendar({ orderItem }: Props) {
                 duration: docData.duration,
                 title: docData.title,
                 addedDate: docData.addedDate,
+                stepNumber: docData.stepNumber,
               });
-              setOrderEvents(events);
             });
+            events.sort((a, b) => {
+              const aStep = a.stepNumber ? a.stepNumber : 0;
+              const bStep = b.stepNumber ? b.stepNumber : 0;
+              return aStep - bStep;
+            });
+            setOrderEvents(events);
           });
           setButtonDisabled(false);
         } else {
@@ -374,9 +388,14 @@ function Calendar({ orderItem }: Props) {
 
   const addEvent = useCallback(
     async (firstEvent: boolean, event?: FirebaseEvent) => {
+      if (dayjs(orderItem.dueDate).isBefore(dayjs())) {
+      }
       try {
         const job = doc(db, 'jobs', orderItem.jobNumber);
         const eventsCollection = collection(job, 'events');
+        const defaultDate = dayjs(orderItem.dueDate).isBefore(dayjs())
+          ? dayjs()
+          : dayjs(orderItem.dueDate);
         await addDoc(eventsCollection, {
           event: event?.calendar || '',
           eventId: '',
@@ -384,12 +403,12 @@ function Calendar({ orderItem }: Props) {
           calendar: event?.calendar || '',
           routing: event?.routing || '',
           updatedDueDate:
-            event?.updatedDueDate ||
-            dayjs(orderItem.dueDate).hour(7).toISOString(),
+            event?.updatedDueDate || defaultDate.hour(7).toISOString(),
           description: event?.description || '',
           duration: event?.duration || '',
           title: event?.title || '',
           addedDate: dayjs().toISOString(),
+          stepNumber: event?.stepNumber || 0,
         }).then((a) => {
           setAlertText(
             firstEvent
@@ -583,6 +602,28 @@ function Calendar({ orderItem }: Props) {
     }
     setDeleteConfirmOpen(false);
   }, [lookupFirebaseNotes, orderItem.jobNumber, selectedNote]);
+
+  const calculateMinStartDate = useCallback(
+    (eventIndex: number) => {
+      let minStartDate;
+      if (eventIndex > 0) {
+        if (orderEvents && orderEvents[eventIndex - 1]) {
+          minStartDate = dayjs(orderEvents[eventIndex - 1].updatedDueDate);
+          if (orderEvents[eventIndex - 1].duration) {
+            let dur = Number(orderEvents[eventIndex - 1].duration) || 0;
+            minStartDate.add(dur, 'hour');
+          }
+        }
+      } else {
+        //first job to exist min start date s/b now
+        minStartDate = dayjs();
+        // return dayjs();
+      }
+      console.log('min start date: ', minStartDate);
+      return minStartDate;
+    },
+    [orderEvents]
+  );
 
   return (
     <>
@@ -807,6 +848,7 @@ function Calendar({ orderItem }: Props) {
                   // eventAdded={eventAdded}
                   setEventEditMode={setEditModeByIndex}
                   addEvent={addEvent}
+                  minStartDate={calculateMinStartDate(idx)}
                 />
               ))}
           </Grid>

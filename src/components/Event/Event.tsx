@@ -10,6 +10,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DoubleArrowIcon from '@mui/icons-material/DoubleArrow';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
+import AccessAlarmIcon from '@mui/icons-material/AccessAlarm';
 import {
   Button,
   Card,
@@ -50,6 +51,7 @@ interface Props {
   // eventAdded: (alert: string) => void;
   setEventEditMode: (index: number, editModeEnabled: boolean) => void;
   addEvent: (first: boolean, fbEvent: FirebaseEvent) => void;
+  minStartDate?: Dayjs;
 }
 
 function Event({
@@ -63,6 +65,7 @@ function Event({
   // eventAdded,
   setEventEditMode,
   addEvent,
+  minStartDate,
 }: Props) {
   const credential = useRecoilValue(credentialState);
   const [duration, setDuration] = useState<string>(
@@ -135,7 +138,6 @@ function Event({
 
   const sendEventToFirebase = async (eventId: string, htmlLink: string) => {
     try {
-      console.log('send to firebase function with :  ', eventId?.toString());
       await setDoc(doc(db, 'jobs', jobNumber, 'events', firebaseEvent.id), {
         calendar: selectedCalendar,
         eventId: eventId,
@@ -146,6 +148,9 @@ function Event({
         duration: duration,
         updatedDueDate: dateValue?.toISOString() || '',
         addedDate: firebaseEvent.addedDate,
+        stepNumber:
+          routings?.find((r) => r.workCenter === selectedRouting)?.stepNumber ||
+          0,
       }).then(() => {
         setAlertText('Successfully Saved');
         setAlertOpen(true);
@@ -177,11 +182,9 @@ function Event({
     await fetch(insertEventURL, postOpts)
       .then((response) => response.json())
       .then((json) => {
-        console.log('INSERT RESULT: ', json);
         htmlLink = json.htmlLink;
         eventId = json.id;
         setEventId(eventId);
-        console.log('setcalendar id', selectedCalendar);
         setCalendarId(selectedCalendar);
       })
       .catch((e) => {
@@ -266,7 +269,13 @@ function Event({
   };
 
   const isCalendarUnavailable = useCallback(() => {
-    return calendars?.find((cal) => cal.id === selectedCalendar) === undefined;
+    if (selectedCalendar && selectedCalendar !== 'pickacalender') {
+      return (
+        calendars?.find((cal) => cal.id === selectedCalendar) === undefined
+      );
+    } else {
+      return false;
+    }
   }, [calendars, selectedCalendar]);
 
   const deleteCalendarEvent = useCallback(async () => {
@@ -500,6 +509,9 @@ function Event({
         duration: duration,
         title: title,
         addedDate: dayjs().toISOString(),
+        stepNumber:
+          routings?.find((r) => r.workCenter === selectedRouting)?.stepNumber ||
+          0,
       });
     };
 
@@ -535,6 +547,7 @@ function Event({
           </MenuItem>
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
+            disabled={isCalendarUnavailable()}
             onClick={() => {
               setDeleteConfirmOpen(true);
               handleClose();
@@ -593,7 +606,9 @@ function Event({
                     </MenuItem>
                     {routings.map((routing: Routing, idx) => (
                       <MenuItem key={idx} value={routing?.workCenter}>
-                        {routing?.workCenter +
+                        {routing?.stepNumber +
+                          ': ' +
+                          routing?.workCenter +
                           ' (' +
                           routing?.description +
                           ',' +
@@ -614,6 +629,14 @@ function Event({
                 disabled={isCalendarUnavailable()}
                 onChange={(newValue) => setDateValue(newValue || dayjs())}
               />
+              {minStartDate && dateValue.isBefore(minStartDate) && (
+                <Tooltip title="Selected Date Out of Order">
+                  <AccessAlarmIcon
+                    fontSize="large"
+                    sx={{ color: red[500] }}
+                  ></AccessAlarmIcon>
+                </Tooltip>
+              )}
               <FormControl
                 disabled={isCalendarUnavailable()}
                 style={{ minWidth: 120 }}
@@ -700,6 +723,8 @@ function Event({
               />
               {calendarId &&
                 calendarId.length > 0 &&
+                eventId &&
+                eventId.length > 0 &&
                 isCalendarUnavailable() && (
                   <Tooltip title="Calendar Access not available">
                     <DoNotDisturbOnIcon
