@@ -38,3 +38,10 @@ export interface FirebaseActivity {
   jobNumber: string;
   addedDate: Date;
 }
+
+export interface FirebaseRoutingSetting {
+  routingCode: string;
+  calendarID: string;
+  calendarName: string;
+  locked: boolean;
+}

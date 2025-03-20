@@ -1,120 +1,154 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import './Settings.css';
+import { Button, Card, Chip, Grid, TextField, Typography } from '@mui/material';
+import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
+import { routingsMapState } from '../../atoms/settings';
+import SettingsAddEditRoutingModal from '../SettingsAddEditRouting/SettingsAddEditRoutingModal';
+import { FirebaseRoutingSetting } from '../../interfaces/FirebaseModels';
 import {
-  Box,
-  TextField,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogActions,
-  Stack,
-} from '@mui/material';
-import { useSetRecoilState } from 'recoil';
-import { ec2TokenState } from '../../atoms/auth';
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+} from 'firebase/firestore';
+import { db } from '../../service/firebase';
+import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 
 function Settings() {
-  const [clientID, setClientID] = React.useState<string>('');
-  const [secret, setSecret] = React.useState<string>('');
-  const [alertOpen, setAlertOpen] = React.useState(false);
-  const [alertText, setAlertText] = React.useState<string>('');
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [deleteRouting, setDeleteRouting] = useState<FirebaseRoutingSetting>();
+  const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
+  // const setRoutingsMap = useSetRecoilState(routingsMap);
 
-  // const ec2token = useRecoilValue(ec2TokenState);
-  const setEC2TokenState = useSetRecoilState(ec2TokenState);
+  // const handleSuccess = () => {
+  //   setAlertText('Successfully retrieved - continue');
+  //   setAlertOpen(true);
+  // };
 
-  const setEC2Token = (token: string) => {
-    setEC2TokenState(token);
-  };
+  // const handleFailure = () => {
+  //   setAlertText('Failure Getting Token');
+  //   setAlertOpen(true);
+  // };
 
-  const handleSuccess = () => {
-    setAlertText('Successfully retrieved - continue');
-    setAlertOpen(true);
-  };
-
-  const handleFailure = () => {
-    setAlertText('Failure Getting Token');
-    setAlertOpen(true);
-  };
-
-  const handleClose = () => {
-    setAlertOpen(false);
-  };
-
-  const handleGetToken = () => {
-    fetch(
-      'https://api-user.integrations.ecimanufacturing.com:443/oauth2/api-user/token',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: clientID,
-          client_secret: secret,
-          scope: 'openid',
-          grant_type: 'client_credentials',
-        }),
-      }
-    )
-      .then((response) => {
-        if (response.status === 200) {
-          return response.json();
-        } else {
-          handleFailure();
-        }
-      })
-      .then((json) => {
-        setEC2Token(json.access_token);
-        handleSuccess();
-      })
-      .catch((error) => {
-        console.log('error getting token: ', error);
-        handleFailure();
+  // const handleClose = () => {
+  //   setAlertOpen(false);
+  // };
+  useEffect(() => {
+    try {
+      let routingsSnapshot = getDocs(
+        query(collection(db, 'routingMap'), orderBy('routingCode'))
+      );
+      routingsSnapshot.then((routs) => {
+        let theList: FirebaseRoutingSetting[] = [];
+        // new Array<FirebaseRoutingSetting>({} as FirebaseRoutingSetting);
+        routs.forEach((doc) => {
+          const docData = doc.data();
+          console.log('one doc', doc.data());
+          theList.push({
+            routingCode: docData.routingCode,
+            calendarID: docData.calendarID,
+            calendarName: docData.calendarName,
+            locked: docData.locked,
+          });
+        });
+        console.log('the list ', theList);
+        setRoutingsMap(theList);
       });
-  };
+    } catch (e) {
+      console.log('error looking up routing');
+    }
+  }, [setRoutingsMap]);
+
+  const openAddModal = useCallback(() => {
+    setShowAddModal(true);
+  }, [setShowAddModal]);
+
+  const openDeleteModal = useCallback((editItem: FirebaseRoutingSetting) => {
+    setDeleteRouting(editItem);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const closeAddModal = useCallback(() => {
+    setShowAddModal(false);
+  }, [setShowAddModal]);
+
+  const deleteRoutingRow = useCallback(() => {
+    const performDelete = async () => {
+      try {
+        if (deleteRouting && deleteRouting.routingCode.length > 0) {
+          await deleteDoc(doc(db, 'routingMap', deleteRouting?.routingCode));
+          const index = routingsMap.findIndex(
+            (routItem) => routItem.routingCode === deleteRouting.routingCode
+          );
+          const newList = [
+            ...routingsMap.slice(0, index),
+            ...routingsMap.slice(index + 1),
+          ];
+          setRoutingsMap(newList);
+          setDeleteConfirmOpen(false);
+        }
+      } catch (e) {
+        console.log('could not delete');
+      }
+    };
+    performDelete();
+  }, [deleteRouting, routingsMap, setRoutingsMap]);
 
   return (
     <div className="settings">
-      <Box alignItems="center" sx={{ display: 'flex', flexWrap: 'wrap' }}>
-        <Stack direction="row" spacing={2}>
-          <TextField
-            id="clientid"
-            required
-            size="medium"
-            label="Client ID"
-            value={clientID}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setClientID(event.target.value);
-            }}
-            variant="outlined"
-          />
-          <TextField
-            required
-            size="medium"
-            id="secret"
-            label="Secret"
-            value={secret}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              setSecret(event.target.value);
-            }}
-          />
-          <Button
-            variant="contained"
-            size="medium"
-            disabled={secret.length === 0 || clientID.length === 0}
-            onClick={handleGetToken}
-          >
-            Authorize With EC
+      {/* <RoutingRowCreator></RoutingRowCreator> */}
+      <Grid container xs={9} direction="column" rowGap={1}>
+        <Grid container item direction="row" justifyContent="space-between">
+          <Typography variant="h5">Routing Configuration</Typography>
+          <Button variant="contained" size="medium" onClick={openAddModal}>
+            Add
           </Button>
-        </Stack>
-      </Box>
-      <Dialog open={alertOpen} onClose={handleClose}>
-        <DialogTitle>{alertText}</DialogTitle>
-        <DialogActions>
-          <Button onClick={handleClose} autoFocus>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Grid>
+
+        {routingsMap.map((routingItem) => (
+          // { !!routingItem && (
+          <Card variant="outlined">
+            <Grid
+              container
+              item
+              direction="row"
+              alignItems="center"
+              columnGap={1}
+            >
+              <TextField
+                size="small"
+                disabled
+                label={routingItem.routingCode}
+              />
+              <Typography>{routingItem.calendarName}</Typography>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() => openDeleteModal(routingItem)}
+              >
+                Delete
+              </Button>
+            </Grid>
+          </Card>
+          // )}
+        ))}
+      </Grid>
+      {showAddModal && (
+        <SettingsAddEditRoutingModal
+          open={showAddModal}
+          onClose={closeAddModal}
+        ></SettingsAddEditRoutingModal>
+      )}
+      <ConfirmationModal
+        open={deleteConfirmOpen}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => deleteRoutingRow()}
+        title={'Confirm Delete'}
+        message={'Do you really want to delete this event?'}
+      />
     </div>
   );
 }

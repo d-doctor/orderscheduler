@@ -1,4 +1,4 @@
-import { atom } from "recoil";
+import { atom } from 'recoil';
 
 interface CredentialStateInterface {
   accessToken?: string | undefined;
@@ -8,17 +8,18 @@ interface CredentialStateInterface {
 }
 
 export const userState = atom({
-  key: "userState",
+  key: 'userState',
   default: {
-    displayName: "",
-    photoURL: "",
-    accessToken: "",
-    oauthAccessToken: "",
+    displayName: '',
+    photoURL: '',
+    accessToken: '',
+    oauthAccessToken: '',
+    uid: '',
   },
 });
 
 export const credentialState = atom<CredentialStateInterface | null>({
-  key: "credentialState",
+  key: 'credentialState',
   default: {
     accessToken: undefined,
     idToken: undefined,
@@ -28,6 +29,6 @@ export const credentialState = atom<CredentialStateInterface | null>({
 });
 
 export const ec2TokenState = atom({
-  key: "ecToken",
-  default: "",
+  key: 'ecToken',
+  default: '',
 });
