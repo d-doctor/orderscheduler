@@ -68,24 +68,6 @@ function Login() {
 
   return (
     <>
-      {/* <Button
-        variant="contained"
-        size="medium"
-        className="login"
-        // onClick={() => {
-        //   const result = firebaseAuth.currentUser
-        //     ?.getIdTokenResult()
-        //     .then((e) => {
-        //       console.log('what do i ahve in my promise ', e);
-        //     });
-        //   console.log('refresh', result);
-        // }}
-        onClick={() => {
-          callFirebaseFunction();
-        }}
-      >
-        function
-      </Button> */}
       {user.accessToken.length <= 0 && (
         <Button
           variant="contained"

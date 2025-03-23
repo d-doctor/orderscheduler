@@ -22,7 +22,6 @@ import { routingsMapState } from '../../atoms/settings';
 interface Props {
   open: boolean;
   onClose: () => void;
-  // editRouting?: FirebaseRoutingSetting;
 }
 
 function SettingsAddEditRoutingModal({ open, onClose }: Props) {
@@ -74,8 +73,6 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
         onClose();
       }
     };
-    console.log('save and close function: ', selectedCalendarId);
-    console.log('save and close function: ', selectedRouting);
     saveRouting();
   }, [
     onClose,
@@ -90,8 +87,6 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
       <Dialog open={open} onClose={onClose}>
         <DialogTitle>Add Routing to Calendar mapping</DialogTitle>
         <DialogContent dividers>
-          {/* <Grid container direction="row" columnGap={1}>
-            <Grid xs={4}> */}
           <FormControl style={{ minWidth: 90, maxWidth: 90, paddingRight: 3 }}>
             <TextField
               size="small"
@@ -103,8 +98,6 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
               }}
             ></TextField>
           </FormControl>
-          {/* </Grid>
-            <Grid xs={4}> */}
           <FormControl style={{ minWidth: 200, maxWidth: 250 }}>
             <InputLabel>Calendar</InputLabel>
             <Select
@@ -129,8 +122,6 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
               ))}
             </Select>
           </FormControl>
-          {/* </Grid>
-          </Grid> */}
         </DialogContent>
         <DialogActions>
           <Button autoFocus onClick={onClose}>

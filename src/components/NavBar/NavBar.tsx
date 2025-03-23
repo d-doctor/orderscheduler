@@ -1,10 +1,14 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Toolbar, Typography } from '@mui/material';
 import './NavBar.css';
 import { Link } from 'react-router-dom';
 import Login from '../Login/Login';
-import { useRecoilValue } from 'recoil';
+import { useRecoilState, useRecoilValue } from 'recoil';
 import { userState } from '../../atoms/auth';
+import { routingsMapState } from '../../atoms/settings';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { db } from '../../service/firebase';
+import { FirebaseRoutingSetting } from '../../interfaces/FirebaseModels';
 
 function Navbar() {
   const user = useRecoilValue(userState);
@@ -15,6 +19,7 @@ function Navbar() {
       val === 'IUCFVA3O5ieZCQeLedNa3ffhhSC2'
     );
   }, []);
+
   return (
     <>
       {/* <CssBaseline /> */}

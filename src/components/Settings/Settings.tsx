@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import './Settings.css';
-import { Button, Card, Chip, Grid, TextField, Typography } from '@mui/material';
-import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
+import { Button, Card, Grid, TextField, Typography } from '@mui/material';
+import { useRecoilState } from 'recoil';
 import { routingsMapState } from '../../atoms/settings';
 import SettingsAddEditRoutingModal from '../SettingsAddEditRouting/SettingsAddEditRoutingModal';
 import { FirebaseRoutingSetting } from '../../interfaces/FirebaseModels';
@@ -21,21 +21,7 @@ function Settings() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
   const [deleteRouting, setDeleteRouting] = useState<FirebaseRoutingSetting>();
   const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
-  // const setRoutingsMap = useSetRecoilState(routingsMap);
 
-  // const handleSuccess = () => {
-  //   setAlertText('Successfully retrieved - continue');
-  //   setAlertOpen(true);
-  // };
-
-  // const handleFailure = () => {
-  //   setAlertText('Failure Getting Token');
-  //   setAlertOpen(true);
-  // };
-
-  // const handleClose = () => {
-  //   setAlertOpen(false);
-  // };
   useEffect(() => {
     try {
       let routingsSnapshot = getDocs(

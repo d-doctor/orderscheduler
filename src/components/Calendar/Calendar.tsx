@@ -18,7 +18,7 @@ import {
   duration,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useRecoilValue } from 'recoil';
+import { useRecoilState, useRecoilValue } from 'recoil';
 import { ec2TokenState, credentialState } from '../../atoms/auth';
 import {
   getDoc,
@@ -43,12 +43,14 @@ import { GoogCal } from '../../interfaces/GoogleModels';
 import {
   FirebaseEvent,
   FirebaseNote,
+  FirebaseRoutingSetting,
   FirebaseSettings,
 } from '../../interfaces/FirebaseModels';
 import Event from '../Event/Event';
 import dayjs from 'dayjs';
 import NoteModal from '../NoteModal/NoteModal';
 import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
+import { routingsMapState } from '../../atoms/settings';
 
 interface Props {
   orderItem: Data;
@@ -76,6 +78,8 @@ function Calendar({ orderItem }: Props) {
   const [notesOpen, setNotesOpen] = useState<boolean>(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<FirebaseNote>();
+  const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
+
   // const [eventStartDates, setEventStartDates] = useState<>(undefined);
 
   const getOrderURLpt1 =
@@ -157,19 +161,28 @@ function Calendar({ orderItem }: Props) {
         duration = '7';
       } else if (routing.cycleTime < 9) {
         duration = '8';
-      } else if (routing.cycleTime <= 10) {
+      } else if (routing.cycleTime < 10) {
         duration = '9';
-      } else if (routing.cycleTime <= 11) {
+      } else if (routing.cycleTime < 11) {
         duration = '10';
-      } else if (routing.cycleTime <= 12) {
+      } else if (routing.cycleTime < 12) {
         duration = '11';
       } else {
         duration = '12';
       }
       console.log('add one for this routing', routing);
+      let calendarID = '';
+      if (routingsMap.find((val) => val.routingCode === routing.workCenter)) {
+        calendarID =
+          routingsMap.find((val) => val.routingCode === routing.workCenter)
+            ?.calendarID || '';
+        console.log('setting the calendar id to ', calendarID);
+      } else {
+        console.log('not setting calendar id');
+      }
       addEvent(false, {
         id: '',
-        calendar: '',
+        calendar: calendarID,
         eventId: '',
         htmlLink: '',
         routing: routing.workCenter,
@@ -206,25 +219,6 @@ function Calendar({ orderItem }: Props) {
 
   useEffect(() => {
     if ((credential?.accessToken, ec2token)) {
-      // let getCalendarListURL =
-      //   'https://www.googleapis.com/calendar/v3/users/me/calendarList';
-      // fetch(getCalendarListURL, {
-      //   headers: {
-      //     accept: 'application/json',
-      //     Authorization: 'Bearer ' + credential?.accessToken,
-      //   },
-      // }).then((response) =>
-      //   response
-      //     .json()
-      //     .then((json) => {
-      //       console.log('did i actually get calendars ', json.items);
-      //       setCalendarList(json.items);
-      //     })
-      //     .catch((e) => {
-      //       console.error('error getting calendar list', e);
-      //     })
-      // );
-
       if (orderItem && ec2token) {
         let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
         fetch(url, {
@@ -468,6 +462,32 @@ function Calendar({ orderItem }: Props) {
       lookupFirebaseJob();
     }
   }, [orderItem, lookupFirebaseJob]);
+
+  useEffect(() => {
+    try {
+      let routingsSnapshot = getDocs(
+        query(collection(db, 'routingMap'), orderBy('routingCode'))
+      );
+      routingsSnapshot.then((routs) => {
+        let theList: FirebaseRoutingSetting[] = [];
+        // new Array<FirebaseRoutingSetting>({} as FirebaseRoutingSetting);
+        routs.forEach((doc) => {
+          const docData = doc.data();
+          console.log('one doc', doc.data());
+          theList.push({
+            routingCode: docData.routingCode,
+            calendarID: docData.calendarID,
+            calendarName: docData.calendarName,
+            locked: docData.locked,
+          });
+        });
+        console.log('the list ', theList);
+        setRoutingsMap(theList);
+      });
+    } catch (e) {
+      console.log('error looking up routing');
+    }
+  }, [setRoutingsMap]);
 
   const getAddress = useCallback(() => {
     if (addressBox) {
