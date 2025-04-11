@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs, { Dayjs } from 'dayjs';
-import { useRecoilValue } from 'recoil';
+import { useRecoilState, useRecoilValue } from 'recoil';
 import { credentialState } from '../../atoms/auth';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -39,6 +39,7 @@ import { db } from '../../service/firebase';
 import useGetCalendarEvent from '../../hooks/useGetCalendarEvent';
 import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 import { writeActivityLog } from '../../util/writeActivityLog';
+import { routingsMapState } from '../../atoms/settings';
 
 interface Props {
   routings?: Routing[];
@@ -99,6 +100,7 @@ function Event({
   const [deleted, setDeleted] = useState<boolean>(false);
   const [googleCalendarEvent, setGoogleCalendarEvent] =
     useState<GoogCalEvent>();
+  const [routingsMap] = useRecoilState(routingsMapState);
   // const [unsavedChanges, setUnsavedChange] = useState<boolean>(false);
   // const [saveInProgress, setSaveInProgress] = useState<boolean>(false);
 
@@ -373,6 +375,15 @@ function Event({
 
   const handleRoutingChange = (event: SelectChangeEvent) => {
     setSelectedRouting(event.target.value);
+
+    console.log('try to find : ', event.target.value);
+    if (
+      routingsMap.find((r) => {
+        return r.routingCode === event.target.value;
+      })
+    ) {
+      console.log('found it so filter the list');
+    }
 
     if (!!foundOnGoogle) {
       const thisRoute = routings?.filter(

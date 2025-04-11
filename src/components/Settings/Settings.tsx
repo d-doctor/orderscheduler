@@ -18,8 +18,10 @@ import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 
 function Settings() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
   const [deleteRouting, setDeleteRouting] = useState<FirebaseRoutingSetting>();
+  const [editRouting, setEditRouting] = useState<FirebaseRoutingSetting>();
   const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
 
   useEffect(() => {
@@ -38,6 +40,7 @@ function Settings() {
             calendarID: docData.calendarID,
             calendarName: docData.calendarName,
             locked: docData.locked,
+            category: docData.category,
           });
         });
         console.log('the list ', theList);
@@ -104,12 +107,23 @@ function Settings() {
               alignItems="center"
               columnGap={1}
             >
+              <TextField size="small" disabled label={routingItem.category} />
               <TextField
                 size="small"
                 disabled
                 label={routingItem.routingCode}
               />
               <Typography>{routingItem.calendarName}</Typography>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() => {
+                  setEditRouting(routingItem);
+                  setShowEditModal(true);
+                }}
+              >
+                Edit
+              </Button>
               <Button
                 variant="contained"
                 size="small"
@@ -126,6 +140,15 @@ function Settings() {
         <SettingsAddEditRoutingModal
           open={showAddModal}
           onClose={closeAddModal}
+        ></SettingsAddEditRoutingModal>
+      )}
+      {showEditModal && (
+        <SettingsAddEditRoutingModal
+          open={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+          }}
+          editRouting={editRouting}
         ></SettingsAddEditRoutingModal>
       )}
       <ConfirmationModal

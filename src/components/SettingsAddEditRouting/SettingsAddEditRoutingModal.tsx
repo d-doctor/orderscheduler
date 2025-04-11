@@ -18,20 +18,30 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../service/firebase';
 import { useRecoilState } from 'recoil';
 import { routingsMapState } from '../../atoms/settings';
+import { FirebaseRoutingSetting } from '../../interfaces/FirebaseModels';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  editRouting?: FirebaseRoutingSetting;
 }
 
-function SettingsAddEditRoutingModal({ open, onClose }: Props) {
+function SettingsAddEditRoutingModal({ open, onClose, editRouting }: Props) {
   const { getCalendarList, getCalendarListResponse } = useGetCalendarList();
   const [calendarList, setCalendarList] = useState<GoogCal[]>();
-  const [selectedCalendarId, setSelectedCalendarId] =
-    useState<string>('pickacalender');
-  const [selectedCalendarName, setSelectedCalendarName] = useState<string>('');
-  const [selectedRouting, setSelectedRouting] = useState<string>('');
-  const [, setRoutingsMap] = useRecoilState(routingsMapState);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>(
+    editRouting?.calendarID || 'pickacalender'
+  );
+  const [selectedCalendarName, setSelectedCalendarName] = useState<string>(
+    editRouting?.calendarName || ''
+  );
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    editRouting?.category || ''
+  );
+  const [selectedRouting, setSelectedRouting] = useState<string>(
+    editRouting?.routingCode || ''
+  );
+  const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
 
   useEffect(() => {
     if (getCalendarListResponse) {
@@ -55,17 +65,39 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
             calendarID: selectedCalendarId,
             calendarName: selectedCalendarName,
             locked: false,
+            category: selectedCategory,
           }
         ).then(() => {
-          setRoutingsMap((oldList) => [
-            ...oldList,
-            {
-              routingCode: selectedRouting,
-              calendarID: selectedCalendarId,
-              calendarName: selectedCalendarName,
-              locked: false,
-            },
-          ]);
+          if (!editRouting) {
+            setRoutingsMap((oldList) => [
+              ...oldList,
+              {
+                routingCode: selectedRouting,
+                calendarID: selectedCalendarId,
+                calendarName: selectedCalendarName,
+                locked: false,
+                category: selectedCategory,
+              },
+            ]);
+          } else {
+            // let newList = routingsMap;
+            const itemIndex = routingsMap.findIndex((item) => {
+              return item.routingCode === selectedRouting;
+            });
+            const newList = [
+              ...routingsMap.slice(0, itemIndex),
+              {
+                routingCode: selectedRouting,
+                calendarID: selectedCalendarId,
+                calendarName: selectedCalendarName,
+                locked: false,
+                category: selectedCategory,
+              } satisfies FirebaseRoutingSetting,
+
+              ...routingsMap.slice(itemIndex + 1),
+            ];
+            setRoutingsMap(newList);
+          }
         });
       } catch (e) {
         console.log('failed to save routing map ', e);
@@ -75,9 +107,12 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
     };
     saveRouting();
   }, [
+    editRouting,
     onClose,
+    routingsMap,
     selectedCalendarId,
     selectedCalendarName,
+    selectedCategory,
     selectedRouting,
     setRoutingsMap,
   ]);
@@ -87,11 +122,33 @@ function SettingsAddEditRoutingModal({ open, onClose }: Props) {
       <Dialog open={open} onClose={onClose}>
         <DialogTitle>Add Routing to Calendar mapping</DialogTitle>
         <DialogContent dividers>
+          <FormControl style={{ minWidth: 200, maxWidth: 250 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              value={selectedCategory}
+              size="small"
+              label="Category"
+              onChange={(event: SelectChangeEvent) => {
+                setSelectedCategory(event?.target.value);
+              }}
+            >
+              <MenuItem key="none" value="uncategorized">
+                Uncategorized
+              </MenuItem>
+              <MenuItem key="Production" value="Production">
+                Production
+              </MenuItem>
+              <MenuItem key="Install" value="Install">
+                Install
+              </MenuItem>
+            </Select>
+          </FormControl>
           <FormControl style={{ minWidth: 90, maxWidth: 90, paddingRight: 3 }}>
             <TextField
               size="small"
               required
               label="Routing Code"
+              disabled={!!editRouting}
               value={selectedRouting}
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                 setSelectedRouting(event.target.value);

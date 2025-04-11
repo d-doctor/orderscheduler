@@ -44,4 +44,5 @@ export interface FirebaseRoutingSetting {
   calendarID: string;
   calendarName: string;
   locked: boolean;
+  category: string;
 }

@@ -212,7 +212,6 @@ function JobsList() {
             day: '2-digit',
             year: 'numeric',
           });
-          // console.log('startDate', startDate);
           dateObject.firstEventStoredDate = startDate;
           if (
             eventsSnapshot.docs[0].data().calendar &&
@@ -223,7 +222,12 @@ function JobsList() {
               eventsSnapshot.docs[0].data().eventId,
               jobNumber
             );
-            dateObject.firstEventGoogleDate = fegd;
+            //if no calendar access from current user default to stored date
+            if (fegd && fegd.length > 0) {
+              dateObject.firstEventGoogleDate = fegd;
+            } else {
+              dateObject.firstEventGoogleDate = startDate;
+            }
           }
         }
         if (eventsSnapshot.size > 1) {
@@ -241,11 +245,16 @@ function JobsList() {
             eventsSnapshot.docs[lastIndex].data().calendar &&
             eventsSnapshot.docs[lastIndex].data().eventId
           ) {
-            dateObject.lastEventGoogleDate = await getGoogleDate(
+            const legd = await getGoogleDate(
               eventsSnapshot.docs[lastIndex].data().calendar,
               eventsSnapshot.docs[lastIndex].data().eventId,
               jobNumber
             );
+            if (legd && legd.length > 0) {
+              dateObject.lastEventGoogleDate = legd;
+            } else {
+              dateObject.lastEventGoogleDate = dateObject.lastEventStoredDate;
+            }
           }
         } else {
           dateObject.lastEventGoogleDate = dateObject.firstEventGoogleDate;
@@ -715,7 +724,9 @@ function JobsList() {
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
               job.orderNumber.toLowerCase().includes(value.toLowerCase()) ||
-              job.partDescription.toLowerCase().includes(value.toLowerCase()) ||
+              job.partDescription
+                ?.toLowerCase()
+                .includes(value.toLowerCase()) ||
               job.partNumber.toLowerCase().includes(value.toLowerCase())
             );
           })

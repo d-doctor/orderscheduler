@@ -15,7 +15,6 @@ import {
   CardContent,
   Typography,
   Divider,
-  duration,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useRecoilState, useRecoilValue } from 'recoil';
@@ -51,6 +50,7 @@ import dayjs from 'dayjs';
 import NoteModal from '../NoteModal/NoteModal';
 import ConfirmationModal from '../ConfirmationModal/ConfirmationModal';
 import { routingsMapState } from '../../atoms/settings';
+import PrefillModal from '../PrefillModal/PrefillModal';
 
 interface Props {
   orderItem: Data;
@@ -79,6 +79,7 @@ function Calendar({ orderItem }: Props) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<FirebaseNote>();
   const [routingsMap, setRoutingsMap] = useRecoilState(routingsMapState);
+  const [prefillModalOpen, setPrefillModalOpen] = useState<boolean>(false);
 
   // const [eventStartDates, setEventStartDates] = useState<>(undefined);
 
@@ -141,9 +142,8 @@ function Calendar({ orderItem }: Props) {
     setButtonDisabled(false);
   };
 
-  const handleAddAllEvents = () => {
-    setButtonDisabled(true);
-    routings?.forEach(async (routing) => {
+  const handlePrefillClose = (selectedRoutings: Routing[]) => {
+    selectedRoutings.forEach(async (routing) => {
       let duration = '';
       if (routing.cycleTime < 2) {
         duration = '1';
@@ -170,7 +170,6 @@ function Calendar({ orderItem }: Props) {
       } else {
         duration = '12';
       }
-      console.log('add one for this routing', routing);
       let calendarID = '';
       if (routingsMap.find((val) => val.routingCode === routing.workCenter)) {
         calendarID =
@@ -194,7 +193,11 @@ function Calendar({ orderItem }: Props) {
         stepNumber: routing.stepNumber,
       });
     });
-    setButtonDisabled(false);
+    setPrefillModalOpen(false);
+  };
+
+  const handleAddAllEvents = () => {
+    setPrefillModalOpen(true);
   };
 
   //TODO: PUT THE CALENDAR LIST IN RECOIL AND ONLY FETCH IT IF YOU NEED IT
@@ -479,6 +482,7 @@ function Calendar({ orderItem }: Props) {
             calendarID: docData.calendarID,
             calendarName: docData.calendarName,
             locked: docData.locked,
+            category: docData.category,
           });
         });
         console.log('the list ', theList);
@@ -831,7 +835,7 @@ function Calendar({ orderItem }: Props) {
                 size="medium"
                 className="addAllEventsButton"
                 onClick={handleAddAllEvents}
-                disabled={buttonDisabled || isEditMode()}
+                disabled={buttonDisabled || isEditMode() || !routings}
               >
                 Prefill Events
               </Button>
@@ -921,6 +925,14 @@ function Calendar({ orderItem }: Props) {
         }}
         jobNumber={orderItem.jobNumber}
       ></NoteModal>
+      {prefillModalOpen && routings && (
+        <PrefillModal
+          open={prefillModalOpen}
+          onCancel={() => setPrefillModalOpen(false)}
+          onClose={handlePrefillClose}
+          routings={routings}
+        ></PrefillModal>
+      )}
     </>
   );
 }
