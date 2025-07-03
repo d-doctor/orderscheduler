@@ -41,6 +41,58 @@ import {
 } from 'firebase/firestore';
 // import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
+interface Column {
+  id:
+    | 'rowNum'
+    | 'orderNumber'
+    | 'jobNumber'
+    | 'partNumber'
+    | 'partDescription'
+    | 'orderTotal'
+    | 'unitPrice'
+    | 'quantityOrdered'
+    | 'uniqueID'
+    // | 'dueDateString'
+    | 'partDescriptionTruncated'
+    // | 'updatedDueDate'
+    // | 'googleStartDate'
+    | 'salesID'
+    | 'customerDescription'
+    | 'location'
+    | 'dateEntered'
+    | 'note'
+    | 'startDate'
+    | 'endDate';
+  label: string;
+  width: number;
+  align?: 'right';
+  format?: (value: number) => string;
+}
+
+interface Data {
+  rowNum: number;
+  jobNumber: string;
+  orderNumber: string;
+  partNumber: string;
+  partDescription: string;
+  dueDate: Date;
+  uniqueID: number;
+  unitPrice: number;
+  quantityOrdered: number;
+  orderTotal: number;
+  dueDateString: string;
+  partDescriptionTruncated: string;
+  startDate: string;
+  endDate: string;
+  // updatedDueDate: string;
+  // googleStartDate: string;
+  salesID: string;
+  customerDescription: string;
+  location: string;
+  dateEntered: string;
+  note: string;
+}
+
 function JobsList() {
   // const auth = getAuth();
   // onAuthStateChanged(auth, (user) => {
@@ -59,6 +111,8 @@ function JobsList() {
   const [reportType, setReportType] = useState('nonADA');
   const [skipRows, setSkiprows] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingECI, setLoadingECI] = useState<boolean>(false);
+  const [eciError, setEciError] = useState<string>('');
   const [searchVal, setSearchVal] = useState<string>('');
   const [masterDateList, setMasterDateList] = useState(
     new Map<
@@ -324,86 +378,65 @@ function JobsList() {
     return date || '';
   };
 
-  const getSalesId = async (orderNumber: string) => {
-    if (orderMap && orderMap.has(orderNumber)) {
-      console.log('already have this sales id do nothing');
-    } else {
-      const getSalesIdURL = getOrderURLpt1 + orderNumber + getOrderURLpt2;
-      await fetch(getSalesIdURL, {
-        headers: {
-          accept: 'application/json',
-          Authorization: 'Bearer ' + ec2token,
-        },
-      })
-        .then((response) => {
-          return response.json();
+  const getSalesId = useCallback(
+    async (orderNumber: string) => {
+      if (orderMap && orderMap.has(orderNumber)) {
+        console.log('already have this sales id do nothing');
+      } else {
+        const getSalesIdURL = getOrderURLpt1 + orderNumber + getOrderURLpt2;
+        console.log('about to kick one off ', orderNumber);
+        await fetch(getSalesIdURL, {
+          headers: {
+            accept: 'application/json',
+            Authorization: 'Bearer ' + ec2token,
+          },
         })
-        .then((json) => {
-          setOrderMap((old) => {
-            let newOrderMap = new Map(old);
-            newOrderMap.set(orderNumber, {
-              salesId: json.Data.salesID,
-              customerDescription: json.Data.customerDescription,
-              location: json.Data.location,
-              dateEntered: json.Data.dateEntered
-                ? new Date(json.Data.dateEntered).toLocaleString('en-US', {
-                    month: '2-digit',
-                    day: '2-digit',
-                    year: 'numeric',
-                  })
-                : '',
+          .then((response) => {
+            if (response.status === 200) {
+              return response.json();
+            } else {
+              setOrderMap((old) => {
+                let newOrderMap = new Map(old);
+                newOrderMap.set(orderNumber, {
+                  salesId: 'ECIFAIL',
+                  customerDescription: 'ECIFAIL',
+                  location: 'ECIFAIL',
+                  dateEntered: 'ECIFAIL',
+                });
+                return newOrderMap;
+              });
+            }
+          })
+          .then((json) => {
+            console.log('response receivered for ', orderNumber);
+            setOrderMap((old) => {
+              let newOrderMap = new Map(old);
+              newOrderMap.set(orderNumber, {
+                salesId: json?.Data.salesID,
+                customerDescription: json?.Data.customerDescription,
+                location: json?.Data.location,
+                dateEntered: json?.Data.dateEntered
+                  ? new Date(json.Data.dateEntered).toLocaleString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: 'numeric',
+                    })
+                  : '',
+              });
+              return newOrderMap;
             });
-            return newOrderMap;
-          });
-        })
-        .catch((error) => console.error(error));
-    }
-  };
-
-  // const getGoogleDate = async (
-  //   calendar: string,
-  //   eventId: string,
-  //   jobNumber: string
-  // ) => {
-  //   let accessToken;
-  //   await firebaseAuth.currentUser?.getIdTokenResult().then((result) => {
-  //     accessToken = result.token;
-  //     console.log('what is this other at ', accessToken);
-  //   });
-  //   const getCalendarEventURL =
-  //     'https://www.googleapis.com/calendar/v3/calendars/' +
-  //     calendar +
-  //     '/events/' +
-  //     eventId;
-  //   const fetchOpts = {
-  //     headers: {
-  //       accept: 'application/json',
-  //       Authorization: 'Bearer ' + credential?.accessToken,
-  //     },
-  //   };
-  //   await fetch(getCalendarEventURL, fetchOpts).then(async (response) => {
-  //     try {
-  //       const json = await response.json();
-  //       if (!json.error && json.state !== 'cancelled') {
-  //         setGoogleDateList((old) => {
-  //           let newMap = new Map(old);
-  //           let gDate = new Date(json.start.dateTime).toLocaleDateString(
-  //             'en-US',
-  //             { month: '2-digit', day: '2-digit', year: 'numeric' }
-  //           );
-  //           newMap.set(jobNumber, gDate);
-  //           return newMap;
-  //         });
-  //       }
-  //     } catch (e) {
-  //       console.log('error getting a calendar ', e);
-  //     }
-  //   });
-  // };
+          })
+          .catch((error) => console.error(error));
+      }
+    },
+    [ec2token, orderMap]
+  );
 
   const handleGetJobs = async () => {
     setLoading(true);
+    setLoadingECI(true);
     setSearchVal('');
+    setEciError('');
     let datalist: Data[] = [];
     let fetchMore = true;
     let fetchError = false;
@@ -421,14 +454,20 @@ function JobsList() {
           Authorization: 'Bearer ' + ec2token,
         },
       })
-        // eslint-disable-next-line no-loop-func
         .then((response) => {
           if (response.status === 200) {
             return response.json();
           } else {
-            fetchError = true;
-            // setOrderFetchMore(false);
-            // setOrderFetcherror(true);
+            setEciError(
+              'Error fetching data from ECI order items API: ' +
+                response.statusText
+            );
+            throw new Error(
+              'Fetch threw invalid response: ' +
+                response.status +
+                ' ' +
+                response.statusText
+            );
           }
         })
         // eslint-disable-next-line no-loop-func
@@ -438,7 +477,7 @@ function JobsList() {
             json.Data.forEach(async (data: Data) => {
               // getScheduledDate(data.jobNumber);
               getUpdatedDates(data.jobNumber);
-              getSalesId(data.orderNumber);
+              // getSalesId(data.orderNumber);
               getLatestNote(data.jobNumber);
               data.rowNum = row;
               datalist.push(data);
@@ -454,7 +493,7 @@ function JobsList() {
         })
         // eslint-disable-next-line no-loop-func
         .catch((error) => {
-          console.log('error fetching', error);
+          console.log('Error in fetching Order Items', error);
           fetchError = true;
         });
     }
@@ -462,77 +501,18 @@ function JobsList() {
     setFilteredJobslist(datalist);
   };
 
-  interface Column {
-    id:
-      | 'rowNum'
-      | 'orderNumber'
-      | 'jobNumber'
-      | 'partNumber'
-      | 'partDescription'
-      | 'orderTotal'
-      | 'unitPrice'
-      | 'quantityOrdered'
-      | 'uniqueID'
-      // | 'dueDateString'
-      | 'partDescriptionTruncated'
-      // | 'updatedDueDate'
-      // | 'googleStartDate'
-      | 'salesID'
-      | 'customerDescription'
-      | 'location'
-      | 'dateEntered'
-      | 'note'
-      | 'startDate'
-      | 'endDate';
-    label: string;
-    width: number;
-    align?: 'right';
-    format?: (value: number) => string;
-  }
-
-  // interface JobsList {
-  //   Data: Data[];
-  // }
-
-  interface Data {
-    rowNum: number;
-    jobNumber: string;
-    orderNumber: string;
-    partNumber: string;
-    partDescription: string;
-    dueDate: Date;
-    uniqueID: number;
-    unitPrice: number;
-    quantityOrdered: number;
-    orderTotal: number;
-    dueDateString: string;
-    partDescriptionTruncated: string;
-    startDate: string;
-    endDate: string;
-    // updatedDueDate: string;
-    // googleStartDate: string;
-    salesID: string;
-    customerDescription: string;
-    location: string;
-    dateEntered: string;
-    note: string;
-  }
-
-  // const retrieveStateDate = useCallback(
-  //   (jobNumber: string) => {
-  //     return scheduledDateList.has(jobNumber)
-  //       ? scheduledDateList.get(jobNumber)
-  //       : '';
-  //   },
-  //   [scheduledDateList]
-  // );
-
-  // const retrieveStateGoogleDate = useCallback(
-  //   (jobNumber: string) => {
-  //     return googleDateList.has(jobNumber) ? googleDateList.get(jobNumber) : '';
-  //   },
-  //   [googleDateList]
-  // );
+  // useEffect(() => {
+  //   if (jobsList) {
+  //     for await (const job of jobsList()) {
+  //     }
+  //     jobsList.forEach(async (j) => {
+  //       console.log('is it really waiting start: ', j.jobNumber);
+  //       await getSalesId(j.jobNumber);
+  //       console.log('is it really waiting end: ', j.jobNumber);
+  //     });
+  //   }
+  //   setFilteredJobslist(jobsList);
+  // }, [getSalesId, jobsList]);
 
   const retrieveStateMasterDate = useCallback(
     (jobNumber: string) => {
@@ -557,7 +537,7 @@ function JobsList() {
 
   const retrieveStateSalesID = useCallback(
     (orderNumber: string) => {
-      return orderMap.has(orderNumber)
+      return orderNumber && orderNumber.length > 0 && orderMap.has(orderNumber)
         ? orderMap.get(orderNumber)
         : {
             salesId: '',
@@ -817,6 +797,11 @@ function JobsList() {
             ))}
           {!ec2token && (
             <Alert severity="warning">Must log in to continue</Alert>
+          )}
+          {eciError && eciError.length > 0 && (
+            <Alert severity="error">
+              Error retriving data from ECI results could be partial: {eciError}
+            </Alert>
           )}
           <Button
             variant="contained"
