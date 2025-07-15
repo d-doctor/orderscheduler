@@ -39,6 +39,7 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
+import { Order } from '../../interfaces/VendorModels';
 // import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 interface Column {
@@ -69,6 +70,43 @@ interface Column {
   format?: (value: number) => string;
 }
 
+const columns: readonly Column[] = [
+  // { id: 'rowNum', label: 'Row', width: 5 },
+  { id: 'salesID', label: 'SalesID', width: 5 },
+  { id: 'dateEntered', label: 'Entered', width: 7 },
+  // { id: 'dueDateString', label: 'ECI Due', width: 10 },
+  // { id: 'updatedDueDate', label: 'Updated Due', width: 10 },
+  // { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
+  { id: 'startDate', label: 'Start Date', width: 20 },
+  { id: 'endDate', label: 'Due Date', width: 20 },
+  { id: 'orderNumber', label: 'Order', width: 5 },
+  { id: 'jobNumber', label: 'Job', width: 15 },
+  { id: 'customerDescription', label: 'Customer', width: 40 },
+  { id: 'location', label: 'Location', width: 40 },
+  { id: 'partNumber', label: 'Part Number', width: 5 },
+  {
+    id: 'partDescriptionTruncated',
+    label: 'Part Description',
+    width: 200,
+  },
+  {
+    id: 'quantityOrdered',
+    label: 'Quantity',
+    width: 5,
+  },
+  {
+    id: 'orderTotal',
+    label: 'Total',
+    width: 5,
+    format: (value) => `$${value}`,
+  },
+  {
+    id: 'note',
+    label: 'Latest Note',
+    width: 200,
+  },
+];
+
 interface Data {
   rowNum: number;
   jobNumber: string;
@@ -93,6 +131,18 @@ interface Data {
   note: string;
 }
 
+const orderURL =
+  'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation%2CcustomerCode&status=Open';
+const urlADA =
+  'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
+const urlNonADA =
+  'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
+// const getOrderURLpt1 =
+//   'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
+// const getOrderURLpt2 =
+//   '?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation';
+//'?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
+
 function JobsList() {
   // const auth = getAuth();
   // onAuthStateChanged(auth, (user) => {
@@ -109,7 +159,6 @@ function JobsList() {
   const credential = useRecoilValue(credentialState);
   const user = useRecoilValue(userState);
   const [reportType, setReportType] = useState('nonADA');
-  const [skipRows, setSkiprows] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingECI, setLoadingECI] = useState<boolean>(false);
   const [eciError, setEciError] = useState<string>('');
@@ -137,17 +186,18 @@ function JobsList() {
   // const [gcalDatesMap, setGcalDatesMap] = useState(
   //   new Map<string, string>()
   // );
-  const [orderMap, setOrderMap] = useState(
-    new Map<
-      string,
-      {
-        salesId: string;
-        customerDescription: string;
-        location: string;
-        dateEntered: string;
-      }
-    >()
-  );
+  // const [orderMap, setOrderMap] = useState(
+  //   new Map<
+  //     string,
+  //     {
+  //       salesId: string;
+  //       customerDescription: string;
+  //       location: string;
+  //       dateEntered: string;
+  //     }
+  //   >()
+  // );
+  const [orderItems, setOrderItems] = useState<Order[]>();
   const [notesMap, setNotesMap] = useState(new Map<string, string>());
   const [jobsList, setJobslist] = useState<Data[]>();
   const [filteredJobsList, setFilteredJobslist] = useState<Data[]>();
@@ -161,16 +211,6 @@ function JobsList() {
   const handleChange = (event: SelectChangeEvent) => {
     setReportType(event.target.value);
   };
-
-  const urlADA =
-    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
-  const urlNonADA =
-    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode[ne]=ADA&sort=dueDate,jobNumber&take=200';
-  const getOrderURLpt1 =
-    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
-  const getOrderURLpt2 =
-    '?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation';
-  //'?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -205,42 +245,58 @@ function JobsList() {
       console.log('error in getting notes');
     }
   };
+  const fetchOrders = useCallback(async () => {
+    let orderList: Order[] = [];
+    let fetchMore = true;
+    let skip = 0;
+    setEciError('');
+    while (fetchMore) {
+      let url = orderURL;
+      if (skip > 0) {
+        url += '&skip=' + skip.toString();
+      }
+      url += '&take=100';
+      await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          Authorization: 'Bearer ' + ec2token,
+        },
+      })
+        .then((response) => {
+          if (response.status === 200) {
+            return response.json();
+          } else {
+            setEciError('Error pre-loading ECI order details, click retry');
+            throw new Error('Failed getting orders');
+          }
+        })
+        // eslint-disable-next-line no-loop-func
+        .then((json) => {
+          if (json) {
+            json.Data.forEach((order: Order) => {
+              orderList.push(order);
+            });
+            if (json.Data.length === 100) {
+              skip += 100;
+            } else {
+              fetchMore = false;
+            }
+          }
+        })
+        // eslint-disable-next-line no-loop-func
+        .catch((err) => {
+          console.log('error caught fetching orders' + err);
+          fetchMore = false;
+        });
+    }
+    setOrderItems(orderList);
+  }, [ec2token]);
 
-  // const getScheduledDate = async (jobNumber: string) => {
-  //   console.log('getting scheduled date for ', jobNumber);
-  //   let updatedDueDate = '';
-  //   try {
-  //     const eventSnapshot = await getDocsFromServer(
-  //       query(
-  //         collection(db, 'jobs', jobNumber, 'events'),
-  //         orderBy('addedDate'),
-  //         limit(1)
-  //       )
-  //     );
-  //     if (!eventSnapshot.empty) {
-  //       eventSnapshot.forEach((doc) => {
-  //         updatedDueDate = doc.exists()
-  //           ? new Date(doc.data().updatedDueDate).toLocaleDateString('en-US', {
-  //               month: '2-digit',
-  //               day: '2-digit',
-  //               year: 'numeric',
-  //             })
-  //           : '';
-  //         setScheduledDateList((old) => {
-  //           var newmap = new Map(old);
-  //           newmap.set(jobNumber, updatedDueDate);
-  //           return newmap;
-  //         });
-  //         console.log('set scheduled date list ', scheduledDateList);
-  //         if (doc.exists() && doc.data().calendar && doc.data().eventId) {
-  //           getGoogleDate(doc.data().calendar, doc.data().eventId, jobNumber);
-  //         }
-  //       });
-  //     }
-  //   } catch {
-  //     console.log('error looking up due date');
-  //   }
-  // };
+  useEffect(() => {
+    if (user.accessToken && ec2token) {
+      fetchOrders();
+    }
+  }, [user, ec2token, fetchOrders]);
 
   const getUpdatedDates = async (jobNumber: string) => {
     let dateObject = {
@@ -378,60 +434,6 @@ function JobsList() {
     return date || '';
   };
 
-  const getSalesId = useCallback(
-    async (orderNumber: string) => {
-      if (orderMap && orderMap.has(orderNumber)) {
-        console.log('already have this sales id do nothing');
-      } else {
-        const getSalesIdURL = getOrderURLpt1 + orderNumber + getOrderURLpt2;
-        console.log('about to kick one off ', orderNumber);
-        await fetch(getSalesIdURL, {
-          headers: {
-            accept: 'application/json',
-            Authorization: 'Bearer ' + ec2token,
-          },
-        })
-          .then((response) => {
-            if (response.status === 200) {
-              return response.json();
-            } else {
-              setOrderMap((old) => {
-                let newOrderMap = new Map(old);
-                newOrderMap.set(orderNumber, {
-                  salesId: 'ECIFAIL',
-                  customerDescription: 'ECIFAIL',
-                  location: 'ECIFAIL',
-                  dateEntered: 'ECIFAIL',
-                });
-                return newOrderMap;
-              });
-            }
-          })
-          .then((json) => {
-            console.log('response receivered for ', orderNumber);
-            setOrderMap((old) => {
-              let newOrderMap = new Map(old);
-              newOrderMap.set(orderNumber, {
-                salesId: json?.Data.salesID,
-                customerDescription: json?.Data.customerDescription,
-                location: json?.Data.location,
-                dateEntered: json?.Data.dateEntered
-                  ? new Date(json.Data.dateEntered).toLocaleString('en-US', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      year: 'numeric',
-                    })
-                  : '',
-              });
-              return newOrderMap;
-            });
-          })
-          .catch((error) => console.error(error));
-      }
-    },
-    [ec2token, orderMap]
-  );
-
   const handleGetJobs = async () => {
     setLoading(true);
     setLoadingECI(true);
@@ -473,7 +475,6 @@ function JobsList() {
         // eslint-disable-next-line no-loop-func
         .then((json) => {
           if (json) {
-            setSkiprows(skipRows + json.Data.length);
             json.Data.forEach(async (data: Data) => {
               // getScheduledDate(data.jobNumber);
               getUpdatedDates(data.jobNumber);
@@ -501,19 +502,6 @@ function JobsList() {
     setFilteredJobslist(datalist);
   };
 
-  // useEffect(() => {
-  //   if (jobsList) {
-  //     for await (const job of jobsList()) {
-  //     }
-  //     jobsList.forEach(async (j) => {
-  //       console.log('is it really waiting start: ', j.jobNumber);
-  //       await getSalesId(j.jobNumber);
-  //       console.log('is it really waiting end: ', j.jobNumber);
-  //     });
-  //   }
-  //   setFilteredJobslist(jobsList);
-  // }, [getSalesId, jobsList]);
-
   const retrieveStateMasterDate = useCallback(
     (jobNumber: string) => {
       return masterDateList.has(jobNumber)
@@ -535,18 +523,26 @@ function JobsList() {
     [notesMap]
   );
 
-  const retrieveStateSalesID = useCallback(
+  const retrieveOrderItem = useCallback(
     (orderNumber: string) => {
-      return orderNumber && orderNumber.length > 0 && orderMap.has(orderNumber)
-        ? orderMap.get(orderNumber)
-        : {
-            salesId: '',
-            customerDescription: '',
-            location: '',
-            dateEntered: '',
-          };
+      if (
+        orderNumber &&
+        orderNumber.length > 0 &&
+        orderItems &&
+        orderItems?.length > 0
+      ) {
+        return orderItems.find((ord) => ord.orderNumber === orderNumber);
+      } else
+        return {
+          salesID: '',
+          orderNumber: '',
+          customerCode: '',
+          customerDescription: '',
+          location: '',
+          dateEntered: new Date(),
+        } as Order;
     },
-    [orderMap]
+    [orderItems]
   );
 
   useEffect(() => {
@@ -579,11 +575,15 @@ function JobsList() {
           retrieveStateMasterDate(data.jobNumber)?.firstEventGoogleDate || '',
         endDate:
           retrieveStateMasterDate(data.jobNumber)?.lastEventGoogleDate || '',
-        salesID: retrieveStateSalesID(data.orderNumber)?.salesId || '',
+        salesID: retrieveOrderItem(data.orderNumber)?.salesID || '',
         customerDescription:
-          retrieveStateSalesID(data.orderNumber)?.customerDescription || '',
-        location: retrieveStateSalesID(data.orderNumber)?.location || '',
-        dateEntered: retrieveStateSalesID(data.orderNumber)?.dateEntered || '',
+          retrieveOrderItem(data.orderNumber)?.customerDescription || '',
+        location: retrieveOrderItem(data.orderNumber)?.location || '',
+        dateEntered:
+          retrieveOrderItem(data.orderNumber)?.dateEntered.toLocaleString(
+            'end-US',
+            { month: '2-digit', day: '2-digit', year: 'numeric' }
+          ) || '',
         note: retrieveStateNote(data.jobNumber) || '',
       };
     }
@@ -604,47 +604,10 @@ function JobsList() {
     setLoading(false);
   }, [
     filteredJobsList,
+    retrieveOrderItem,
     retrieveStateMasterDate,
     retrieveStateNote,
-    retrieveStateSalesID,
   ]);
-
-  const columns: readonly Column[] = [
-    // { id: 'rowNum', label: 'Row', width: 5 },
-    { id: 'salesID', label: 'SalesID', width: 5 },
-    { id: 'dateEntered', label: 'Entered', width: 7 },
-    // { id: 'dueDateString', label: 'ECI Due', width: 10 },
-    // { id: 'updatedDueDate', label: 'Updated Due', width: 10 },
-    // { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
-    { id: 'startDate', label: 'Start Date', width: 20 },
-    { id: 'endDate', label: 'Due Date', width: 20 },
-    { id: 'orderNumber', label: 'Order', width: 5 },
-    { id: 'jobNumber', label: 'Job', width: 15 },
-    { id: 'customerDescription', label: 'Customer', width: 40 },
-    { id: 'location', label: 'Location', width: 40 },
-    { id: 'partNumber', label: 'Part Number', width: 5 },
-    {
-      id: 'partDescriptionTruncated',
-      label: 'Part Description',
-      width: 200,
-    },
-    {
-      id: 'quantityOrdered',
-      label: 'Quantity',
-      width: 5,
-    },
-    {
-      id: 'orderTotal',
-      label: 'Total',
-      width: 5,
-      format: (value) => `$${value}`,
-    },
-    {
-      id: 'note',
-      label: 'Latest Note',
-      width: 200,
-    },
-  ];
 
   const handleRowClick = (event: React.MouseEvent<unknown>, data: Data) => {
     setSelectedOrder(data);
@@ -669,38 +632,24 @@ function JobsList() {
       }
       setDrawerOpen(open);
     };
-  // const toggleNotes =
-  //   (open: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
-  //     if (
-  //       event.type === 'keydown' &&
-  //       ((event as React.KeyboardEvent).key === 'Tab' ||
-  //         (event as React.KeyboardEvent).key === 'Shift')
-  //     ) {
-  //       return;
-  //     }
-  //     setNotesOpen(open);
-  //   };
 
   const searchJobs = useCallback(
     (value: string) => {
       if (value && value.length > 0) {
         setFilteredJobslist(
           jobsList?.filter((job) => {
+            let orderItem = orderItems?.find(
+              (order) => order.orderNumber === job.orderNumber
+            );
+            console.log('order item to search', orderItem);
             return (
               // scheduledDateList.get(job.jobNumber)?.includes(value) ||
               // googleDateList.get(job.jobNumber)?.includes(value) ||
-              orderMap
-                .get(job.orderNumber)
-                ?.salesId.includes(value.toUpperCase()) ||
-              orderMap
-                .get(job.orderNumber)
-                ?.customerDescription.toLowerCase()
-                .includes(value.toLocaleLowerCase()) ||
-              orderMap
-                .get(job.orderNumber)
-                ?.location.toLowerCase()
+              orderItem?.salesID.toLowerCase().includes(value.toLowerCase()) ||
+              orderItem?.customerDescription
+                .toLowerCase()
                 .includes(value.toLowerCase()) ||
-              // job.dueDateString?.toLowerCase().includes(value.toLowerCase()) || //can't actually search this string need to format it //OR DO WE NEED TO SEARCH THE data instead of the jobslist?
+              orderItem?.location.toLowerCase().includes(value.toLowerCase()) ||
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
               job.orderNumber.toLowerCase().includes(value.toLowerCase()) ||
@@ -716,7 +665,7 @@ function JobsList() {
       }
       setPage(0);
     },
-    [jobsList, orderMap]
+    [jobsList, orderItems]
   );
 
   const exportToExcel = () => {
@@ -771,7 +720,7 @@ function JobsList() {
             <Button
               variant="contained"
               size="medium"
-              disabled={ec2token.length === 0}
+              disabled={ec2token.length === 0 || eciError.length > 0}
               onClick={handleGetJobs}
             >
               Get Orders
@@ -798,11 +747,6 @@ function JobsList() {
           {!ec2token && (
             <Alert severity="warning">Must log in to continue</Alert>
           )}
-          {eciError && eciError.length > 0 && (
-            <Alert severity="error">
-              Error retriving data from ECI results could be partial: {eciError}
-            </Alert>
-          )}
           <Button
             variant="contained"
             size="medium"
@@ -811,6 +755,21 @@ function JobsList() {
           >
             Export
           </Button>
+          {eciError && eciError.length > 0 && (
+            <>
+              <Alert severity="error">{eciError}</Alert>
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={() => {
+                  setEciError('');
+                  fetchOrders();
+                }}
+              >
+                Retry Pre-load
+              </Button>
+            </>
+          )}
         </Stack>
       </Box>
       {loading && <DialogTitle>Loading</DialogTitle>}
@@ -895,7 +854,12 @@ function JobsList() {
             <CancelIcon sx={{ color: blue[500] }} />
           </IconButton>
         </DialogTitle>
-        {selectedorder && <Calendar orderItem={selectedorder} />}
+        {selectedorder && (
+          <Calendar
+            orderItem={selectedorder}
+            orderDetail={retrieveOrderItem(selectedorder.orderNumber)}
+          />
+        )}
       </Drawer>
     </div>
   );

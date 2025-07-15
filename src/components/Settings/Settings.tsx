@@ -43,7 +43,6 @@ function Settings() {
             category: docData.category,
           });
         });
-        console.log('the list ', theList);
         setRoutingsMap(theList);
       });
     } catch (e) {

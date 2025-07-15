@@ -54,13 +54,14 @@ import PrefillModal from '../PrefillModal/PrefillModal';
 
 interface Props {
   orderItem: Data;
+  orderDetail?: Order;
 }
 
-function Calendar({ orderItem }: Props) {
+function Calendar({ orderItem, orderDetail }: Props) {
   const ec2token = useRecoilValue(ec2TokenState);
   const credential = useRecoilValue(credentialState);
   const [calendarList, setCalendarList] = useState<GoogCal[]>();
-  const [order, setOrder] = useState<Order>();
+  // const [order, setOrder] = useState<Order>();
   const [routings, setRoutings] = useState<Routing[]>();
   const [address, setAddress] = useState<ShippingAddress>();
   const [alertOpen, setAlertOpen] = useState(false);
@@ -83,10 +84,10 @@ function Calendar({ orderItem }: Props) {
 
   // const [eventStartDates, setEventStartDates] = useState<>(undefined);
 
-  const getOrderURLpt1 =
-    'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
-  const getOrderURLpt2 =
-    '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
+  // const getOrderURLpt1 =
+  //   'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders/';
+  // const getOrderURLpt2 =
+  //   '?fields=orderNumber%2CcustomerCode%2Clocation%2CcustomerDescription%2CsalesID%2CdateEntered';
   const getAddressURL =
     'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/shipping-addresses/';
   // const getRoutingsURL = 'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-routings?jobNumber=';
@@ -220,22 +221,23 @@ function Calendar({ orderItem }: Props) {
     }
   }, [getCalendarList, orderItem]);
 
+  //TODO - can we stop calling this and get it from the store where we put it earlier?
   useEffect(() => {
     if ((credential?.accessToken, ec2token)) {
-      if (orderItem && ec2token) {
-        let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
-        fetch(url, {
-          headers: {
-            accept: 'application/json',
-            Authorization: 'Bearer ' + ec2token,
-          },
-        })
-          .then((response) => response.json())
-          .then((json) => setOrder(json.Data))
-          .catch((error) => console.error(error));
-      } else {
-        console.log('need order item and token to get address');
-      }
+      // if (orderItem && ec2token) {
+      // let url = getOrderURLpt1 + orderItem.orderNumber + getOrderURLpt2;
+      //   fetch(url, {
+      //     headers: {
+      //       accept: 'application/json',
+      //       Authorization: 'Bearer ' + ec2token,
+      //     },
+      //   })
+      //     .then((response) => response.json())
+      //     .then((json) => setOrder(json.Data))
+      //     .catch((error) => console.error(error));
+      // } else {
+      //   console.log('need order item and token to get address');
+      // }
       if (orderItem && ec2token) {
         let url =
           getRoutingsURL + orderItem.jobNumber + getRoutingsURLSortClause;
@@ -255,9 +257,12 @@ function Calendar({ orderItem }: Props) {
     }
   }, [orderItem, credential?.accessToken, ec2token]);
 
+  //TODO can we stop doing this if the jobslist puts it into the store?
   useEffect(() => {
-    if (order) {
-      let url = getAddressURL + order.customerCode + '/' + order.location;
+    console.log('the order detail trigged the use effect', orderDetail);
+    if (orderDetail) {
+      let url =
+        getAddressURL + orderDetail.customerCode + '/' + orderDetail.location;
       fetch(url, {
         headers: {
           accept: 'application/json',
@@ -268,7 +273,7 @@ function Calendar({ orderItem }: Props) {
         .then((json) => setAddress(json.Data))
         .catch((error) => console.error(error));
     }
-  }, [order, ec2token]);
+  }, [orderDetail, ec2token]);
 
   const lookupFirebaseJob = useCallback(() => {
     const singleJobRef = doc(db, 'jobs', orderItem.jobNumber);
@@ -377,11 +382,11 @@ function Calendar({ orderItem }: Props) {
   }, [orderItem.jobNumber]);
 
   useEffect(() => {
-    if (order) {
+    if (orderDetail) {
       lookupFirebaseNotes();
       lookupFirebaseOrderSettings();
     }
-  }, [order, ec2token, lookupFirebaseNotes, lookupFirebaseOrderSettings]);
+  }, [orderDetail, ec2token, lookupFirebaseNotes, lookupFirebaseOrderSettings]);
 
   const addEvent = useCallback(
     async (firstEvent: boolean, event?: FirebaseEvent) => {
@@ -485,7 +490,6 @@ function Calendar({ orderItem }: Props) {
             category: docData.category,
           });
         });
-        console.log('the list ', theList);
         setRoutingsMap(theList);
       });
     } catch (e) {
@@ -514,11 +518,11 @@ function Calendar({ orderItem }: Props) {
     let description = '';
     //orderItem.partDescription
     if (salesID) {
-      description += order?.salesID;
+      description += orderDetail?.salesID;
       description += ' ';
     }
     if (dateEntered) {
-      description += order?.dateEntered.toLocaleString('en-US', {
+      description += orderDetail?.dateEntered.toLocaleString('en-US', {
         month: '2-digit',
         day: '2-digit',
         year: 'numeric',
@@ -538,35 +542,35 @@ function Calendar({ orderItem }: Props) {
       description += ' ';
     }
     if (customerDescription) {
-      description += order?.customerDescription;
+      description += orderDetail?.customerDescription;
       description += ' ';
     }
     if (location) {
-      description += order?.location;
+      description += orderDetail?.location;
       description += ' ';
     }
     return description;
   }, [
-    customerDescription,
-    dateEntered,
-    jobNumber,
-    location,
-    order?.customerDescription,
-    order?.dateEntered,
-    order?.location,
-    order?.salesID,
-    orderItem.jobNumber,
-    orderItem.orderNumber,
-    orderItem.partNumber,
-    orderNumber,
-    partNumber,
     salesID,
+    dateEntered,
+    orderNumber,
+    jobNumber,
+    partNumber,
+    customerDescription,
+    location,
+    orderDetail?.salesID,
+    orderDetail?.dateEntered,
+    orderDetail?.customerDescription,
+    orderDetail?.location,
+    orderItem.orderNumber,
+    orderItem.jobNumber,
+    orderItem.partNumber,
   ]);
 
   useEffect(() => {
     setDescriptionPrefix(getSummary());
     setDisplayAddress(getAddress());
-  }, [order, orderItem, getSummary, getAddress]);
+  }, [orderItem, orderDetail, getSummary, getAddress]);
 
   const handleCloseDialog = () => {
     setAlertOpen(false);
@@ -672,7 +676,7 @@ function Calendar({ orderItem }: Props) {
                           name={'salesID'}
                         />
                       }
-                      label={order?.salesID || 'not found'}
+                      label={orderDetail?.salesID || 'not found'}
                     />
                   </Grid>
                 </Grid>
@@ -690,7 +694,7 @@ function Calendar({ orderItem }: Props) {
                         />
                       }
                       label={
-                        order?.dateEntered.toLocaleString('en-US', {
+                        orderDetail?.dateEntered.toLocaleString('en-US', {
                           month: '2-digit',
                           day: '2-digit',
                           year: 'numeric',
@@ -712,7 +716,7 @@ function Calendar({ orderItem }: Props) {
                           name={'orderNumber'}
                         />
                       }
-                      label={order?.orderNumber}
+                      label={orderDetail?.orderNumber}
                     />
                   </Grid>
                 </Grid>
@@ -763,7 +767,7 @@ function Calendar({ orderItem }: Props) {
                           name={'customerDescription'}
                         />
                       }
-                      label={order?.customerDescription}
+                      label={orderDetail?.customerDescription}
                     />
                   </Grid>
                 </Grid>
@@ -780,7 +784,7 @@ function Calendar({ orderItem }: Props) {
                           name={'location'}
                         />
                       }
-                      label={order?.location}
+                      label={orderDetail?.location}
                     />
                   </Grid>
                 </Grid>
