@@ -63,7 +63,9 @@ interface Column {
     | 'dateEntered'
     | 'note'
     | 'startDate'
-    | 'endDate';
+    | 'endDate'
+    | 'user_Text1'
+    | 'user_Text2';
   label: string;
   width: number;
   align?: 'right';
@@ -79,6 +81,7 @@ const columns: readonly Column[] = [
   // { id: 'googleStartDate', label: 'Calendar Start Date', width: 20 },
   { id: 'startDate', label: 'Start Date', width: 20 },
   { id: 'endDate', label: 'Due Date', width: 20 },
+  { id: 'user_Text2', label: 'Project ID', width: 15 },
   { id: 'orderNumber', label: 'Order', width: 5 },
   { id: 'jobNumber', label: 'Job', width: 15 },
   { id: 'customerDescription', label: 'Customer', width: 40 },
@@ -105,6 +108,11 @@ const columns: readonly Column[] = [
     label: 'Latest Note',
     width: 200,
   },
+  {
+    id: 'user_Text1',
+    label: 'Project Manager',
+    width: 40,
+  },
 ];
 
 interface Data {
@@ -129,10 +137,12 @@ interface Data {
   location: string;
   dateEntered: string;
   note: string;
+  user_Text1: string;
+  user_Text2: string;
 }
 
 const orderURL =
-  'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation%2CcustomerCode&status=Open';
+  'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/orders?fields=orderNumber%2CsalesID%2CcustomerDescription%2CdateEntered%2Clocation%2CcustomerCode%2Cuser_Text1%2Cuser_Text2&status=Open';
 const urlADA =
   'https://api-jb2.integrations.ecimanufacturing.com:443/api/v1/order-line-items?status=Open&productCode=ADA&sort=dueDate,jobNumber&take=200';
 const urlNonADA =
@@ -540,6 +550,8 @@ function JobsList() {
           customerDescription: '',
           location: '',
           dateEntered: new Date(),
+          user_Text1: '',
+          user_Text2: '',
         } as Order;
     },
     [orderItems]
@@ -584,6 +596,8 @@ function JobsList() {
             'end-US',
             { month: '2-digit', day: '2-digit', year: 'numeric' }
           ) || '',
+        user_Text1: retrieveOrderItem(data.orderNumber)?.user_Text1 || '',
+        user_Text2: retrieveOrderItem(data.orderNumber)?.user_Text2 || '',
         note: retrieveStateNote(data.jobNumber) || '',
       };
     }
@@ -650,6 +664,12 @@ function JobsList() {
                 .toLowerCase()
                 .includes(value.toLowerCase()) ||
               orderItem?.location.toLowerCase().includes(value.toLowerCase()) ||
+              orderItem?.user_Text1
+                ?.toLowerCase()
+                .includes(value.toLowerCase()) ||
+              orderItem?.user_Text2
+                ?.toLowerCase()
+                .includes(value.toLowerCase()) ||
               //TODO: recheck the useeffect chain to see if it's doing what it should or can it be more efficient
               job.jobNumber.toLowerCase().includes(value.toLowerCase()) ||
               job.orderNumber.toLowerCase().includes(value.toLowerCase()) ||

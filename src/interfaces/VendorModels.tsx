@@ -43,4 +43,6 @@ export interface Order {
   customerDescription: string;
   location: string;
   dateEntered: Date;
+  user_Text1: string;
+  user_Text2: string;
 }

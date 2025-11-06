@@ -55,14 +55,11 @@ function Login() {
   const auth = getAuth();
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      console.log('USER IN LOGIN COMPO ', user);
-      console.log('AUTH IN  LOGIN COMPO ', auth);
       const uid = user.uid;
       const name = user.displayName;
       // ...
     } else {
-      console.log('SIGNED OUT USER IN LOGIN COMPO ', user);
-      console.log('SIGNED OUT AUTH IN  LOGIN COMPO ', auth);
+      console.log('SIGNED OUT AUTH IN  LOGIN COMPO ');
     }
   });
 
